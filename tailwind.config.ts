@@ -22,7 +22,7 @@ const config: Config = {
         border: "rgba(255,255,255,0.08)",
       },
       fontFamily: {
-        sans: ["var(--font-montserrat)", "sans-serif"],
+        sans: ["Montserrat", "sans-serif"],
       },
     },
   },
