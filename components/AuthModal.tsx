@@ -11,10 +11,7 @@ import clsx from "clsx";
 type Step = "email" | "code" | "register" | "done" | "password" | "login-done";
 type CodeState = "idle" | "checking" | "success" | "error";
 
-// Mock existing users
-const EXISTING_USERS: Record<string, { nome: string; senha: string }> = {
-  "teste123@gmail.com": { nome: "Usuário Teste", senha: "teste123" },
-};
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -31,7 +28,6 @@ export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) 
   const [codeState, setCodeState]     = useState<CodeState>("idle");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Animate in
   useEffect(() => {
     if (isOpen) {
       requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)));
@@ -40,7 +36,6 @@ export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) 
     }
   }, [isOpen]);
 
-  // ESC to close
   useEffect(() => {
     if (!isOpen) return;
     const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -48,14 +43,12 @@ export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) 
     return () => window.removeEventListener("keydown", handler);
   }, [isOpen, onClose]);
 
-  // Auto-focus email input
   useEffect(() => {
     if (visible && step === "email" && inputRef.current) {
       setTimeout(() => inputRef.current?.focus(), 300);
     }
   }, [visible, step]);
 
-  // Reset state after modal closes
   useEffect(() => {
     if (!isOpen) {
       const t = setTimeout(() => {
@@ -69,18 +62,28 @@ export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) 
     }
   }, [isOpen]);
 
-  const handleEmailSubmit = (e: React.FormEvent) => {
+  // ── MUDANÇA 1: check-email agora chama a API real ──
+  const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || emailLoading) return;
     setEmailLoading(true);
-    setTimeout(() => {
-      setEmailLoading(false);
-      if (EXISTING_USERS[email.toLowerCase()]) {
+    try {
+      const res = await fetch(`${API_URL}/auth/check-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (data.exists) {
         setStep("password");
       } else {
         setStep("code");
       }
-    }, 1500);
+    } catch {
+      setStep("code"); // fallback: trata como novo usuário
+    } finally {
+      setEmailLoading(false);
+    }
   };
 
   const handleCodeSuccess = useCallback(() => {
@@ -126,7 +129,6 @@ export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) 
 
   return (
     <>
-      {/* Backdrop */}
       <div
         onClick={handleBackdropClick}
         className={clsx(
@@ -134,8 +136,6 @@ export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) 
           visible ? "opacity-100" : "opacity-0"
         )}
       />
-
-      {/* Desktop modal */}
       <div className="fixed inset-0 z-[61] hidden lg:flex items-center justify-center pointer-events-none">
         <div className={clsx(
           "pointer-events-auto bg-card border border-white/[0.08] rounded-2xl shadow-2xl w-full max-w-md mx-4 p-8 transition-all duration-300",
@@ -144,8 +144,6 @@ export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) 
           {content}
         </div>
       </div>
-
-      {/* Mobile bottom sheet */}
       <div className={clsx(
         "fixed inset-x-0 bottom-0 z-[61] lg:hidden transition-transform duration-300 ease-out",
         visible ? "translate-y-0" : "translate-y-full"
@@ -161,7 +159,6 @@ export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) 
   );
 }
 
-// ── Router ─────────────────────────────────────────────────────────────────────
 interface ContentProps {
   step: Step;
   email: string;
@@ -223,7 +220,6 @@ function ModalContent(props: ContentProps) {
   );
 }
 
-// ── Step 0: Email ──────────────────────────────────────────────────────────────
 function EmailStep({
   email, setEmail, inputRef, loading, onSubmit, onClose,
 }: {
@@ -271,7 +267,6 @@ function EmailStep({
             className="w-full bg-gray-medium/60 border border-white/[0.08] rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-text-tint focus:outline-none focus:border-primary/50 focus:bg-gray-medium/80 transition-all disabled:opacity-60"
           />
         </div>
-
         <button
           type="submit"
           disabled={!email || loading}
@@ -282,11 +277,7 @@ function EmailStep({
               : "bg-white/[0.06] text-text-tint cursor-not-allowed"
           )}
         >
-          {loading ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
-          ) : (
-            <>Continuar <ArrowRight className="w-4 h-4" /></>
-          )}
+          {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Continuar <ArrowRight className="w-4 h-4" /></>}
         </button>
       </form>
 
@@ -300,7 +291,6 @@ function EmailStep({
   );
 }
 
-// ── Step 1: Code verification ──────────────────────────────────────────────────
 const CORRECT_CODE = "111111";
 
 function CodeStep({
@@ -343,14 +333,11 @@ function CodeStep({
   };
 
   const handleKeyDown = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === "Backspace" && !digits[i] && i > 0) {
-      refs.current[i - 1]?.focus();
-    }
+    if (e.key === "Backspace" && !digits[i] && i > 0) refs.current[i - 1]?.focus();
     if (e.key === "ArrowLeft" && i > 0) refs.current[i - 1]?.focus();
     if (e.key === "ArrowRight" && i < 5) refs.current[i + 1]?.focus();
   };
 
-  // Handle paste
   const handlePaste = (e: React.ClipboardEvent) => {
     const pasted = e.clipboardData.getData("text").replace(/\D/g, "").slice(0, 6);
     if (!pasted) return;
@@ -361,14 +348,13 @@ function CodeStep({
     if (pasted.length === 6) validate(pasted);
   };
 
-  const isError   = codeState === "error";
-  const isSuccess = codeState === "success";
+  const isError    = codeState === "error";
+  const isSuccess  = codeState === "success";
   const isChecking = codeState === "checking";
-  const disabled  = isChecking || isSuccess;
+  const disabled   = isChecking || isSuccess;
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div className="flex items-start justify-between">
         <button onClick={onBack} className="p-1.5 rounded-lg hover:bg-white/5 text-text-tint hover:text-white transition-colors -ml-1">
           <ArrowLeft className="w-4 h-4" />
@@ -377,7 +363,6 @@ function CodeStep({
           <X className="w-4 h-4" />
         </button>
       </div>
-
       <div className="space-y-1">
         <h2 className="text-xl font-bold text-white">Insira o código</h2>
         <p className="text-sm text-text-tint">
@@ -385,11 +370,8 @@ function CodeStep({
           <span className="text-white font-medium">{email}</span>
         </p>
       </div>
-
-      {/* Boxes OR status — same fixed-height slot */}
       <div className="flex justify-center items-center" style={{ minHeight: 56 }}>
         {!isChecking && !isSuccess && !isError ? (
-          /* 6-digit boxes */
           <div className="flex gap-2.5">
             {digits.map((d, i) => (
               <input
@@ -428,8 +410,6 @@ function CodeStep({
           </div>
         )}
       </div>
-
-      {/* Security warning — right below the boxes area */}
       <div className="flex gap-3 bg-yellow-500/5 border border-yellow-500/15 rounded-xl p-3.5">
         <ShieldAlert className="w-4 h-4 text-yellow-400/70 shrink-0 mt-0.5" />
         <p className="text-[11px] text-text-tint/70 leading-relaxed">
@@ -440,7 +420,7 @@ function CodeStep({
   );
 }
 
-// ── Step 2: Register ───────────────────────────────────────────────────────────
+// ── MUDANÇA 2: RegisterStep agora chama a API real ──
 function RegisterStep({ onSuccess, email }: { onSuccess: (nome: string) => void; email: string }) {
   const [nome, setNome]               = useState("");
   const [cpf, setCpf]                 = useState("");
@@ -449,6 +429,7 @@ function RegisterStep({ onSuccess, email }: { onSuccess: (nome: string) => void;
   const [showSenha, setShowSenha]     = useState(false);
   const [showConfirmar, setShowConfirmar] = useState(false);
   const [loading, setLoading]         = useState(false);
+  const [apiError, setApiError]       = useState("");
 
   const formatCpf = (v: string) => {
     const n = v.replace(/\D/g, "").slice(0, 11);
@@ -461,60 +442,69 @@ function RegisterStep({ onSuccess, email }: { onSuccess: (nome: string) => void;
   const senhaMatch = senha === confirmar || confirmar === "";
   const canSubmit  = nome.trim() && cpf.replace(/\D/g, "").length === 11 && senha.length >= 6 && senha === confirmar && !loading;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit) return;
     setLoading(true);
-    setTimeout(() => {
+    setApiError("");
+    try {
+      const res = await fetch(`${API_URL}/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: nome.trim(),
+          email,
+          cpf: cpf.replace(/\D/g, ""),
+          password: senha,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setApiError(data.error || "Erro ao criar conta. Tente novamente.");
+        setLoading(false);
+        return;
+      }
+      // Salva token no localStorage
+      localStorage.setItem("capite_token", data.token);
+      localStorage.setItem("capite_user", JSON.stringify(data.user));
+      onSuccess(data.user.name);
+    } catch {
+      setApiError("Erro de conexão. Tente novamente.");
       setLoading(false);
-      onSuccess(nome.trim());
-    }, 1500);
+    }
   };
 
   return (
     <div className="space-y-5">
-      {/* Header */}
       <div className="flex items-start justify-between">
         <div className="flex-1 pr-4">
           <h2 className="text-xl font-bold text-white">Falta pouco!</h2>
           <p className="text-sm text-text-tint mt-0.5">Crie sua conta em segundos</p>
         </div>
       </div>
-
-      {/* Email badge */}
       <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
         <Mail className="w-3.5 h-3.5 text-text-tint shrink-0" />
         <span className="text-xs text-text-tint truncate">{email}</span>
       </div>
-
       <form onSubmit={handleSubmit} className="space-y-3">
-        {/* Nome */}
-        <div>
-          <input
-            type="text"
-            value={nome}
-            onChange={(e) => setNome(e.target.value)}
-            placeholder="Nome completo"
-            required
-            autoComplete="name"
-            className="w-full bg-gray-medium/60 border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white placeholder-text-tint focus:outline-none focus:border-primary/50 transition-all"
-          />
-        </div>
-
-        {/* CPF */}
-        <div>
-          <input
-            type="text"
-            value={cpf}
-            onChange={(e) => setCpf(formatCpf(e.target.value))}
-            placeholder="CPF (000.000.000-00)"
-            required
-            inputMode="numeric"
-            className="w-full bg-gray-medium/60 border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white placeholder-text-tint focus:outline-none focus:border-primary/50 transition-all"
-          />
-        </div>
-
-        {/* Senha */}
+        <input
+          type="text"
+          value={nome}
+          onChange={(e) => setNome(e.target.value)}
+          placeholder="Nome completo"
+          required
+          autoComplete="name"
+          className="w-full bg-gray-medium/60 border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white placeholder-text-tint focus:outline-none focus:border-primary/50 transition-all"
+        />
+        <input
+          type="text"
+          value={cpf}
+          onChange={(e) => setCpf(formatCpf(e.target.value))}
+          placeholder="CPF (000.000.000-00)"
+          required
+          inputMode="numeric"
+          className="w-full bg-gray-medium/60 border border-white/[0.08] rounded-xl px-4 py-3 text-sm text-white placeholder-text-tint focus:outline-none focus:border-primary/50 transition-all"
+        />
         <div className="relative">
           <input
             type={showSenha ? "text" : "password"}
@@ -526,16 +516,10 @@ function RegisterStep({ onSuccess, email }: { onSuccess: (nome: string) => void;
             autoComplete="new-password"
             className="w-full bg-gray-medium/60 border border-white/[0.08] rounded-xl pl-4 pr-10 py-3 text-sm text-white placeholder-text-tint focus:outline-none focus:border-primary/50 transition-all"
           />
-          <button
-            type="button"
-            onClick={() => setShowSenha((v) => !v)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tint hover:text-white transition-colors"
-          >
+          <button type="button" onClick={() => setShowSenha((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tint hover:text-white transition-colors">
             {showSenha ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
           </button>
         </div>
-
-        {/* Confirmar senha */}
         <div className="relative">
           <input
             type={showConfirmar ? "text" : "password"}
@@ -546,74 +530,49 @@ function RegisterStep({ onSuccess, email }: { onSuccess: (nome: string) => void;
             autoComplete="new-password"
             className={clsx(
               "w-full bg-gray-medium/60 border rounded-xl pl-4 pr-10 py-3 text-sm text-white placeholder-text-tint focus:outline-none transition-all",
-              !senhaMatch
-                ? "border-red-500/50 focus:border-red-500/70"
-                : "border-white/[0.08] focus:border-primary/50"
+              !senhaMatch ? "border-red-500/50 focus:border-red-500/70" : "border-white/[0.08] focus:border-primary/50"
             )}
           />
-          <button
-            type="button"
-            onClick={() => setShowConfirmar((v) => !v)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tint hover:text-white transition-colors"
-          >
+          <button type="button" onClick={() => setShowConfirmar((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tint hover:text-white transition-colors">
             {showConfirmar ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
           </button>
         </div>
-        {!senhaMatch && confirmar && (
-          <p className="text-xs text-red-400 -mt-1 pl-1">As senhas não coincidem.</p>
-        )}
-
-        {/* Submit */}
+        {!senhaMatch && confirmar && <p className="text-xs text-red-400 -mt-1 pl-1">As senhas não coincidem.</p>}
+        {apiError && <p className="text-xs text-red-400 pl-1">{apiError}</p>}
         <button
           type="submit"
           disabled={!canSubmit}
           className={clsx(
             "w-full flex items-center justify-center gap-2 font-semibold text-sm px-4 py-3 rounded-xl transition-all mt-1",
-            canSubmit
-              ? "bg-primary hover:bg-primary/90 text-white"
-              : "bg-white/[0.06] text-text-tint cursor-not-allowed"
+            canSubmit ? "bg-primary hover:bg-primary/90 text-white" : "bg-white/[0.06] text-text-tint cursor-not-allowed"
           )}
         >
-          {loading ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
-          ) : (
-            <>Criar conta <ArrowRight className="w-4 h-4" /></>
-          )}
+          {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Criar conta <ArrowRight className="w-4 h-4" /></>}
         </button>
       </form>
     </div>
   );
 }
 
-// ── Step 3: Success ─────────────────────────────────────────────────────────────
 function SuccessStep({ nome, onClose }: { nome: string; onClose: () => void }) {
   const firstName = nome.split(" ")[0];
-
   const fadeUp = (delay: number) => ({
     initial: { opacity: 0, y: 16 },
     animate: { opacity: 1, y: 0 },
     transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] as [number, number, number, number], delay },
   });
-
   return (
     <div className="flex flex-col items-center text-center space-y-6 py-4">
-      {/* Icon — pop in with spring */}
       <motion.div
         initial={{ scale: 0, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ type: "spring", damping: 14, stiffness: 260, delay: 0.05 }}
         className="flex items-center justify-center w-20 h-20 rounded-full bg-primary/15"
       >
-        <motion.div
-          initial={{ rotate: -20 }}
-          animate={{ rotate: 0 }}
-          transition={{ type: "spring", damping: 12, stiffness: 200, delay: 0.15 }}
-        >
+        <motion.div initial={{ rotate: -20 }} animate={{ rotate: 0 }} transition={{ type: "spring", damping: 12, stiffness: 200, delay: 0.15 }}>
           <PartyPopper className="w-9 h-9 text-primary" />
         </motion.div>
       </motion.div>
-
-      {/* Text */}
       <motion.div {...fadeUp(0.18)} className="space-y-1.5">
         <h2 className="text-2xl font-bold text-white">Conta criada!</h2>
         <p className="text-sm text-text-tint leading-relaxed">
@@ -622,8 +581,6 @@ function SuccessStep({ nome, onClose }: { nome: string; onClose: () => void }) {
           Sua conta foi criada com sucesso.
         </p>
       </motion.div>
-
-      {/* CTA */}
       <motion.button
         {...fadeUp(0.30)}
         onClick={onClose}
@@ -637,7 +594,7 @@ function SuccessStep({ nome, onClose }: { nome: string; onClose: () => void }) {
   );
 }
 
-// ── Step: Password (login) ─────────────────────────────────────────────────────
+// ── MUDANÇA 3: PasswordStep agora chama a API real ──
 function PasswordStep({
   email, onSuccess, onBack, onClose,
 }: {
@@ -651,21 +608,33 @@ function PasswordStep({
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!senha || loading) return;
     setLoading(true);
     setError(false);
-    setTimeout(() => {
-      const user = EXISTING_USERS[email.toLowerCase()];
-      if (user && senha === user.senha) {
-        onSuccess(user.nome);
-      } else {
+    try {
+      const res = await fetch(`${API_URL}/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password: senha }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
         setLoading(false);
         setError(true);
         setTimeout(() => setError(false), 3000);
+        return;
       }
-    }, 1300);
+      // Salva token no localStorage
+      localStorage.setItem("capite_token", data.token);
+      localStorage.setItem("capite_user", JSON.stringify(data.user));
+      onSuccess(data.user.name);
+    } catch {
+      setLoading(false);
+      setError(true);
+      setTimeout(() => setError(false), 3000);
+    }
   };
 
   return (
@@ -678,18 +647,14 @@ function PasswordStep({
           <X className="w-4 h-4" />
         </button>
       </div>
-
       <div className="space-y-1">
         <h2 className="text-xl font-bold text-white">Bem-vindo de volta!</h2>
         <p className="text-sm text-text-tint">Digite sua senha para entrar</p>
       </div>
-
-      {/* Email badge */}
       <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/[0.04] border border-white/[0.06]">
         <Mail className="w-3.5 h-3.5 text-text-tint shrink-0" />
         <span className="text-xs text-text-tint truncate">{email}</span>
       </div>
-
       <form onSubmit={handleSubmit} className="space-y-3">
         <div className="relative">
           <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-text-tint pointer-events-none" />
@@ -704,32 +669,20 @@ function PasswordStep({
             disabled={loading}
             className={clsx(
               "w-full bg-gray-medium/60 border rounded-xl pl-10 pr-10 py-3 text-sm text-white placeholder-text-tint focus:outline-none transition-all disabled:opacity-60",
-              error
-                ? "border-red-500/50 focus:border-red-500/70"
-                : "border-white/[0.08] focus:border-primary/50"
+              error ? "border-red-500/50 focus:border-red-500/70" : "border-white/[0.08] focus:border-primary/50"
             )}
           />
-          <button
-            type="button"
-            onClick={() => setShow((v) => !v)}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tint hover:text-white transition-colors"
-          >
+          <button type="button" onClick={() => setShow((v) => !v)} className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tint hover:text-white transition-colors">
             {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
           </button>
         </div>
-
-        {error && (
-          <p className="text-xs text-red-400 pl-1">Senha incorreta. Tente novamente.</p>
-        )}
-
+        {error && <p className="text-xs text-red-400 pl-1">Senha incorreta. Tente novamente.</p>}
         <button
           type="submit"
           disabled={!senha || loading}
           className={clsx(
             "w-full flex items-center justify-center gap-2 font-semibold text-sm px-4 py-3 rounded-xl transition-all",
-            senha && !loading
-              ? "bg-primary hover:bg-primary/90 text-white"
-              : "bg-white/[0.06] text-text-tint cursor-not-allowed"
+            senha && !loading ? "bg-primary hover:bg-primary/90 text-white" : "bg-white/[0.06] text-text-tint cursor-not-allowed"
           )}
         >
           {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <>Entrar <ArrowRight className="w-4 h-4" /></>}
@@ -739,16 +692,13 @@ function PasswordStep({
   );
 }
 
-// ── Step: Login success ────────────────────────────────────────────────────────
 function LoginDoneStep({ nome, onClose }: { nome: string; onClose: () => void }) {
   const firstName = nome.split(" ")[0];
-
   const fadeUp = (delay: number) => ({
     initial: { opacity: 0, y: 16 },
     animate: { opacity: 1, y: 0 },
     transition: { duration: 0.45, ease: [0.22, 1, 0.36, 1] as [number, number, number, number], delay },
   });
-
   return (
     <div className="flex flex-col items-center text-center space-y-6 py-4">
       <motion.div
@@ -757,15 +707,10 @@ function LoginDoneStep({ nome, onClose }: { nome: string; onClose: () => void })
         transition={{ type: "spring", damping: 14, stiffness: 260, delay: 0.05 }}
         className="flex items-center justify-center w-20 h-20 rounded-full bg-primary/15"
       >
-        <motion.div
-          initial={{ scale: 0.6 }}
-          animate={{ scale: 1 }}
-          transition={{ type: "spring", damping: 12, stiffness: 200, delay: 0.15 }}
-        >
+        <motion.div initial={{ scale: 0.6 }} animate={{ scale: 1 }} transition={{ type: "spring", damping: 12, stiffness: 200, delay: 0.15 }}>
           <Check className="w-9 h-9 text-primary" />
         </motion.div>
       </motion.div>
-
       <motion.div {...fadeUp(0.18)} className="space-y-1.5">
         <h2 className="text-2xl font-bold text-white">Olá, {firstName}!</h2>
         <p className="text-sm text-text-tint leading-relaxed">
@@ -773,7 +718,6 @@ function LoginDoneStep({ nome, onClose }: { nome: string; onClose: () => void })
           Boas previsões no <span className="text-white font-semibold">Previsão.io</span>!
         </p>
       </motion.div>
-
       <motion.button
         {...fadeUp(0.30)}
         onClick={onClose}
@@ -787,7 +731,6 @@ function LoginDoneStep({ nome, onClose }: { nome: string; onClose: () => void })
   );
 }
 
-// ── Google icon ────────────────────────────────────────────────────────────────
 function GoogleIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 18 18" fill="none" xmlns="http://www.w3.org/2000/svg">
