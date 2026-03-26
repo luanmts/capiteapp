@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, useCallback } from "react";
 
-export type AuthUser = { nome: string; email: string };
+export type AuthUser = { id: string; nome: string; email: string; token: string };
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -16,27 +16,37 @@ const AuthContext = createContext<AuthContextValue>({
   logout: () => {},
 });
 
-const STORAGE_KEY = "previsao_user";
-
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
 
   // Hydrate from localStorage once on mount
   useEffect(() => {
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) setUser(JSON.parse(raw));
+      const raw   = localStorage.getItem("capite_user");
+      const token = localStorage.getItem("capite_token");
+      if (raw && token) {
+        const parsed = JSON.parse(raw);
+        // capite_user has { id, name, email } — normalize name → nome
+        setUser({
+          id:    parsed.id,
+          nome:  parsed.nome ?? parsed.name,
+          email: parsed.email,
+          token,
+        });
+      }
     } catch {}
   }, []);
 
   const login = useCallback((u: AuthUser) => {
     setUser(u);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(u));
+    localStorage.setItem("capite_token", u.token);
+    localStorage.setItem("capite_user", JSON.stringify({ id: u.id, name: u.nome, email: u.email }));
   }, []);
 
   const logout = useCallback(() => {
     setUser(null);
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem("capite_token");
+    localStorage.removeItem("capite_user");
   }, []);
 
   return (

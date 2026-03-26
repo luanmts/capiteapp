@@ -34,7 +34,7 @@ interface BetsContextValue {
   balance: number;
   openBets: Bet[];
   closedBets: Bet[];
-  placeBet(params: PlaceBetParams): "ok" | "insufficient_balance";
+  placeBet(params: PlaceBetParams): Promise<"ok" | "insufficient_balance" | "error">;
   resolveBetsForMarket(marketId: string, firstSelectionWon: boolean): void;
   cancelBetsForMarket(marketId: string): void;
   addBalance(amount: number): void;
@@ -86,8 +86,57 @@ export function BetsProvider({ children }: { children: ReactNode }) {
   useEffect(() => { if (mounted) localStorage.setItem(CLOSED_KEY,   JSON.stringify(closedBets)); }, [closedBets, mounted]);
 
   // ── Place bet ────────────────────────────────────────────────────────────────
-  const placeBet = useCallback((params: PlaceBetParams): "ok" | "insufficient_balance" => {
+  const placeBet = useCallback(async (params: PlaceBetParams): Promise<"ok" | "insufficient_balance" | "error"> => {
     if (params.amount > balance) return "insufficient_balance";
+
+    const token = typeof window !== "undefined" ? localStorage.getItem("capite_token") : null;
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+
+    // Se houver token e URL da API, chama o backend real
+    if (token && apiUrl) {
+      try {
+        const res = await fetch(`${apiUrl}/positions`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            marketId:   params.marketId,
+            side:       params.isFirstSelection ? "yes" : "no",
+            stake:      params.amount,
+            oddLocked:  params.odd,
+          }),
+        });
+
+        if (res.status === 402) return "insufficient_balance";
+        if (!res.ok) return "error";
+
+        const data = await res.json();
+        // Atualiza estado local com dados retornados pelo backend
+        const bet: Bet = {
+          id:             data.position?.id ?? `bet-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          marketId:       params.marketId,
+          marketTitle:    params.marketTitle,
+          marketIcon:     params.marketIcon,
+          marketImageUrl: params.marketImageUrl,
+          selectionLabel: params.selectionLabel,
+          isFirstSelection: params.isFirstSelection,
+          amount:         params.amount,
+          odd:            params.odd,
+          potentialWin:   +(params.amount * params.odd).toFixed(2),
+          placedAt:       new Date().toISOString(),
+          status:         "open",
+        };
+        setBalance(prev => +(prev - params.amount).toFixed(2));
+        setOpenBets(prev => [bet, ...prev]);
+        return "ok";
+      } catch {
+        return "error";
+      }
+    }
+
+    // Modo demo (sem token): atualiza apenas localmente
     const bet: Bet = {
       id: `bet-${Date.now()}-${Math.random().toString(36).slice(2)}`,
       ...params,

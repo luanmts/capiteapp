@@ -16,7 +16,7 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001";
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onLogin?: (user: { nome: string; email: string }) => void;
+  onLogin?: (user: { id: string; nome: string; email: string; token: string }) => void;
 }
 
 export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) {
@@ -93,13 +93,27 @@ export default function AuthModal({ isOpen, onClose, onLogin }: AuthModalProps) 
   const handleRegisterSuccess = useCallback((nome: string) => {
     setRegisteredNome(nome);
     setStep("done");
-    onLogin?.({ nome, email });
+    try {
+      const raw   = localStorage.getItem("capite_user");
+      const token = localStorage.getItem("capite_token");
+      if (raw && token) {
+        const u = JSON.parse(raw);
+        onLogin?.({ id: u.id, nome: u.name ?? nome, email: u.email ?? email, token });
+      }
+    } catch {}
   }, [email, onLogin]);
 
   const handlePasswordSuccess = useCallback((nome: string) => {
     setRegisteredNome(nome);
     setStep("login-done");
-    onLogin?.({ nome, email });
+    try {
+      const raw   = localStorage.getItem("capite_user");
+      const token = localStorage.getItem("capite_token");
+      if (raw && token) {
+        const u = JSON.parse(raw);
+        onLogin?.({ id: u.id, nome: u.name ?? nome, email: u.email ?? email, token });
+      }
+    } catch {}
   }, [email, onLogin]);
 
   const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {

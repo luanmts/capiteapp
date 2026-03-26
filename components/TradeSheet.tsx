@@ -69,7 +69,7 @@ export default function TradeSheet({
 
   const add = useCallback((n: number) => setAmount((prev) => Math.max(0, +(prev + n).toFixed(2))), []);
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!selection || amount <= 0) return;
     if (amount > balance) {
       setBetError("Saldo insuficiente para esta previsão.");
@@ -78,30 +78,32 @@ export default function TradeSheet({
     }
 
     setBetState("loading");
-    setTimeout(() => {
-      const result = placeBet({
-        marketId,
-        marketTitle,
-        marketIcon,
-        marketImageUrl,
-        selectionLabel: selection.label,
-        isFirstSelection: direction === "up",
-        amount,
-        odd: selection.odd,
-      });
+    const result = await placeBet({
+      marketId,
+      marketTitle,
+      marketIcon,
+      marketImageUrl,
+      selectionLabel: selection.label,
+      isFirstSelection: direction === "up",
+      amount,
+      odd: selection.odd,
+    });
 
-      if (result === "ok") {
-        setBetState("success");
-        setTimeout(() => {
-          setBetState("idle");
-          onClose();
-        }, 2000);
-      } else {
+    if (result === "ok") {
+      setBetState("success");
+      setTimeout(() => {
         setBetState("idle");
-        setBetError("Saldo insuficiente para esta previsão.");
-        setTimeout(() => setBetError(null), 3000);
-      }
-    }, 1000);
+        onClose();
+      }, 2000);
+    } else {
+      setBetState("idle");
+      setBetError(
+        result === "insufficient_balance"
+          ? "Saldo insuficiente para esta previsão."
+          : "Erro ao registrar previsão. Tente novamente."
+      );
+      setTimeout(() => setBetError(null), 3000);
+    }
   };
 
   if (!isOpen && !visible) return null;

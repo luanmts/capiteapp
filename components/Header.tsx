@@ -13,7 +13,7 @@ import Deposit from "./deposit";
 import { useAuth } from "@/contexts/AuthContext";
 import { useBets } from "@/contexts/BetsContext";
 
-type User = { nome: string; email: string };
+type User = { id: string; nome: string; email: string; token: string };
 
 // ── Avatar with initials ────────────────────────────────────────────────────────
 const AVATAR_COLORS = ["#02BC17", "#3b82f6", "#8b5cf6", "#ec4899", "#f59e0b", "#06b6d4"];
@@ -106,7 +106,6 @@ export default function Header() {
 
   const handleLogin = (u: User) => {
     login(u);
-    // Modal stays open — SuccessStep's "Começar a explorar" button calls onClose
   };
   const handleLogout = () => { logout(); setDropdownOpen(false); };
   const toggleDropdown = () => setDropdownOpen(v => !v);

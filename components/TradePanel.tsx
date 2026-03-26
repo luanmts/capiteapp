@@ -221,7 +221,7 @@ export default function TradePanel({ market, controlledSelection, predictionsOpe
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.15 }}
             disabled={!!user && (amount <= 0 || !predictionsOpen)}
-            onClick={() => {
+            onClick={async () => {
               if (!user) { setAuthOpen(true); return; }
               const sel = isControlled
                 ? controlledSelection?.sel
@@ -237,29 +237,31 @@ export default function TradePanel({ market, controlledSelection, predictionsOpe
                 : market.selections[0]?.id === selectedId;
 
               setBetState("loading");
-              setTimeout(() => {
-                const result = placeBet({
-                  marketId: market.id,
-                  marketTitle: market.title,
-                  marketIcon: market.icon,
-                  marketImageUrl: market.imageUrl,
-                  selectionLabel: isControlled
-                    ? `${controlledSelection!.sel.label} — ${controlledSelection!.dir === "sim" ? "Sim" : "Não"}`
-                    : sel.label,
-                  isFirstSelection: isFirst,
-                  amount,
-                  odd: activeOdd ?? 1,
-                });
+              const result = await placeBet({
+                marketId: market.id,
+                marketTitle: market.title,
+                marketIcon: market.icon,
+                marketImageUrl: market.imageUrl,
+                selectionLabel: isControlled
+                  ? `${controlledSelection!.sel.label} — ${controlledSelection!.dir === "sim" ? "Sim" : "Não"}`
+                  : sel.label,
+                isFirstSelection: isFirst,
+                amount,
+                odd: activeOdd ?? 1,
+              });
 
-                if (result === "ok") {
-                  setBetState("success");
-                  setTimeout(() => { setBetState("idle"); setAmount(0); }, 2000);
-                } else {
-                  setBetState("idle");
-                  setBetError("Saldo insuficiente para esta previsão.");
-                  setTimeout(() => setBetError(null), 3000);
-                }
-              }, 1000);
+              if (result === "ok") {
+                setBetState("success");
+                setTimeout(() => { setBetState("idle"); setAmount(0); }, 2000);
+              } else {
+                setBetState("idle");
+                setBetError(
+                  result === "insufficient_balance"
+                    ? "Saldo insuficiente para esta previsão."
+                    : "Erro ao registrar previsão. Tente novamente."
+                );
+                setTimeout(() => setBetError(null), 3000);
+              }
             }}
             className={clsx(
               "w-full py-3.5 rounded-2xl text-sm font-bold transition-colors",
