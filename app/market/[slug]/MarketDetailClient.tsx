@@ -188,7 +188,7 @@ function LiveCryptoView({ market }: { market: Market }) {
   const {
     phase, minsLeft, secsLeft, priceTobeat, currentPrice, priceDelta,
     priceHistory, newSlotLabel, roundKey, resolvedDirection,
-  } = useLiveMarket(market.closesAt, market.live === 1);
+  } = useLiveMarket(market.closesAt, market.live === 1, market.id);
 
   const { resolveBetsForMarket, cancelBetsForMarket } = useBets();
   const lastResolvedRoundRef = useRef(-1);
@@ -534,7 +534,7 @@ function LiveCryptoView({ market }: { market: Market }) {
 
 // ── Live Count (Rodovia) Layout ────────────────────────────────────────────────
 function LiveCountView({ market }: { market: Market }) {
-  const { phase, minsLeft, secsLeft, newSlotLabel, roundKey, resolvedDirection } = useLiveMarket(market.closesAt, market.live === 1);
+  const { phase, minsLeft, secsLeft, newSlotLabel, roundKey, resolvedDirection } = useLiveMarket(market.closesAt, market.live === 1, market.id);
 
   const { resolveBetsForMarket, cancelBetsForMarket } = useBets();
   const lastResolvedRoundRef = useRef(-1);

@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { Market } from "@/types";
 import { useBets } from "@/contexts/BetsContext";
+import { settleMarket } from "@/lib/settlementApi";
 
 /**
  * Lifecycle hook for non-live markets.
@@ -39,6 +40,12 @@ export function useMarketResolution(market: Market) {
       // Gives a stable outcome across re-renders without randomness
       const firstSelectionWins = market.id.charCodeAt(market.id.length - 1) % 2 === 1;
       resolveBetsForMarket(market.id, firstSelectionWins);
+
+      // Notifica o backend (fire-and-forget — silencioso em caso de falha)
+      const token = typeof window !== "undefined" ? localStorage.getItem("capite_token") : null;
+      if (token) {
+        settleMarket(market.id, firstSelectionWins ? "yes" : "no", token);
+      }
     };
 
     if (delay <= 0) {

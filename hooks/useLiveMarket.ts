@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { settleMarket } from "@/lib/settlementApi";
 
 export type MarketPhase = "pre" | "live" | "transitioning" | "closed";
 
@@ -38,7 +39,7 @@ function currentWindowClose(): number {
 // How long to show the transition toast after the window rolls over (ms)
 const TRANSITION_HOLD_MS = 2_000;
 
-export function useLiveMarket(_closesAt: string, _isLive: boolean): LiveMarketState {
+export function useLiveMarket(_closesAt: string, _isLive: boolean, marketId?: string): LiveMarketState {
   const priceRef        = useRef(BTC_CURRENT_START);
   const priceTobeatRef  = useRef(BTC_PRICE_TO_BEAT);
   const phaseRef        = useRef<MarketPhase>("live");
@@ -82,6 +83,15 @@ export function useLiveMarket(_closesAt: string, _isLive: boolean): LiveMarketSt
         // Build new slot label: the start of this window HH:MM
         const slotStart = new Date(closeMs - 5 * 60 * 1000);
         const newLabel  = `${String(slotStart.getHours()).padStart(2, "0")}:${String(slotStart.getMinutes()).padStart(2, "0")}`;
+
+        // Notifica o backend sobre o resultado do round (fire-and-forget)
+        if (marketId) {
+          const token = typeof window !== "undefined" ? localStorage.getItem("capite_token") : null;
+          if (token) {
+            const outcome = finalDirection === "up" ? "yes" : finalDirection === "down" ? "no" : "cancelled";
+            settleMarket(marketId, outcome, token);
+          }
+        }
 
         // Transitioning: blur + feedback
         phaseRef.current = "transitioning";
