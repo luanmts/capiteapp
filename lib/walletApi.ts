@@ -11,7 +11,7 @@ export async function fetchBalance(token: string): Promise<number> {
     });
     if (!res.ok) return 0;
     const data = await res.json();
-    return typeof data.available_balance === "number" ? data.available_balance : 0;
+    return typeof data.balance === "number" ? data.balance : 0;
   } catch {
     return 0;
   }
