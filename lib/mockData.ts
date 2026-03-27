@@ -52,26 +52,6 @@ function getVisibleDailyCloseDates(closeHour: number, closeMin = 0, removeAfterM
 }
 
 export const markets: (Market | GroupedMarket)[] = [ // eslint-disable-line prefer-const
-  // Live markets
-  {
-    id: "1",
-    title: "Bitcoin: Sobe ou Desce? (em 5 minutos)",
-    slug: "bitcoin-70k-5min",
-    description:
-      "O preço do Bitcoin (BTC/USD) vai subir ou cair nos próximos 5 minutos na Binance.",
-    icon: "₿",
-    imageUrl: "/images/bitcoin.png",
-    category: "Criptomoedas",
-    closesAt: addMinutes(3),
-    live: 1,
-    volume: 48320,
-    matchingSystem: "binary",
-    displayType: "crypto-live",
-    selections: [
-      { id: "s1", label: "Sobe", odd: 1.32, percent: 76, code: "SOBE", color: "#02BC17" },
-      { id: "s2", label: "Desce", odd: 4.15, percent: 24, code: "DESCE", color: "#e23838" },
-    ],
-  },
   {
     id: "13",
     title: "Neymar Jr será convocado para a Copa do Mundo?",
