@@ -120,7 +120,6 @@ export default function TradePanel({ market, controlledSelection, predictionsOpe
           <div className="flex items-center justify-between mb-2">
             <span className="text-xs font-medium text-text-tint uppercase tracking-wider">Valor</span>
             <div className="flex items-center gap-3">
-              <span className="text-xs text-text-tint tabular-nums">Saldo: R$ {balance.toFixed(2)}</span>
               <button
                 onClick={() => setAmount(0)}
                 className={clsx(

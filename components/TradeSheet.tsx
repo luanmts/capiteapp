@@ -167,7 +167,6 @@ export default function TradeSheet({
           <div>
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs text-text-tint font-medium uppercase tracking-wider">Valor</span>
-              <span className="text-xs text-text-tint tabular-nums">Saldo: R$ {balance.toFixed(2).replace(".", ",")}</span>
             </div>
             <div className="flex items-center gap-4">
               <button
