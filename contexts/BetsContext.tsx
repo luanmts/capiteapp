@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
+import { fetchBalance } from "@/lib/walletApi";
 
 export interface Bet {
   id: string;
@@ -45,8 +46,7 @@ const BetsContext = createContext<BetsContextValue | null>(null);
 const BALANCE_KEY  = "previsao_balance";
 const OPEN_KEY     = "previsao_open_bets";
 const CLOSED_KEY   = "previsao_closed_bets";
-// TODO (produção): alterar para 0. R$500 é apenas para fins de demonstração (conta demo).
-const INITIAL_BALANCE = 500;
+const INITIAL_BALANCE = 0;
 
 // Deduplicates an array of bets by ID (keeps first occurrence)
 function dedupBets(bets: Bet[]): Bet[] {
@@ -72,12 +72,19 @@ export function BetsProvider({ children }: { children: ReactNode }) {
 
   // Hydrate from localStorage — deduplicate on load to fix any previously stored duplicates
   useEffect(() => {
-    const b = localStorage.getItem(BALANCE_KEY);
     const o = localStorage.getItem(OPEN_KEY);
     const c = localStorage.getItem(CLOSED_KEY);
-    if (b) setBalance(JSON.parse(b));
     if (o) setOpenBets(dedupBets(JSON.parse(o)));
     if (c) setClosedBets(dedupBets(JSON.parse(c)));
+
+    // Se houver token, busca o saldo real do banco; caso contrário mantém 0
+    const token = localStorage.getItem("capite_token");
+    if (token) {
+      fetchBalance(token).then((real) => {
+        if (real > 0) setBalance(real);
+      });
+    }
+
     setMounted(true);
   }, []);
 
