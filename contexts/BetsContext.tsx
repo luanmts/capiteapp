@@ -72,16 +72,19 @@ export function BetsProvider({ children }: { children: ReactNode }) {
 
   // Hydrate from localStorage — deduplicate on load to fix any previously stored duplicates
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
     const o = localStorage.getItem(OPEN_KEY);
     const c = localStorage.getItem(CLOSED_KEY);
     if (o) setOpenBets(dedupBets(JSON.parse(o)));
     if (c) setClosedBets(dedupBets(JSON.parse(c)));
 
-    // Se houver token, busca o saldo real do banco; caso contrário mantém 0
     const token = localStorage.getItem("capite_token");
     if (token) {
       fetchBalance(token).then((real) => {
-        if (real > 0) setBalance(real);
+        setBalance(real);
+      }).catch(() => {
+        setBalance(0);
       });
     }
 
