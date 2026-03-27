@@ -2,7 +2,17 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { Market, GroupedMarket } from "@/types";
-import { markets as initialMarkets } from "@/lib/mockData";
+import { markets as mockMarkets } from "@/lib/mockData";
+import { fetchMarkets } from "@/lib/marketsApi";
+
+function isDynamic(m: Market | GroupedMarket): boolean {
+  return (
+    m.live === 1 ||
+    m.id.startsWith("carlinhos-") ||
+    m.id.startsWith("virginia-") ||
+    m.id.startsWith("rio-clima-")
+  );
+}
 
 type OrderBy = "recent" | "volume" | "closing";
 
@@ -26,14 +36,20 @@ export function useMarkets(): UseMarketsReturn {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Simulate async data fetching
     setIsLoading(true);
-    const timer = setTimeout(() => {
-      setMarkets(initialMarkets);
+    fetchMarkets().then((apiMarkets) => {
+      if (apiMarkets.length === 0) {
+        setMarkets(mockMarkets);
+      } else {
+        const apiIds   = new Set(apiMarkets.map((m) => m.id));
+        const apiSlugs = new Set(apiMarkets.map((m) => m.slug));
+        const mockRemainder = mockMarkets.filter(
+          (m) => isDynamic(m) || (!apiIds.has(m.id) && !apiSlugs.has(m.slug))
+        );
+        setMarkets([...apiMarkets, ...mockRemainder]);
+      }
       setIsLoading(false);
-    }, 600);
-
-    return () => clearTimeout(timer);
+    });
   }, []);
 
   const handleSetCategory = useCallback((cat: string) => {
