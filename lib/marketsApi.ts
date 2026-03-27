@@ -74,3 +74,34 @@ export async function fetchMarkets(): Promise<Market[]> {
     return [];
   }
 }
+
+export interface ActiveRound {
+  roundId: string;    // current_round_id do template
+  startPrice: number; // start_price do round ativo
+  closesAt: string;   // closes_at do round ativo
+}
+
+/**
+ * Busca o round ativo do Bitcoin pelo slug do template.
+ * Retorna null se indisponível — nunca lança exceção.
+ */
+export async function fetchActiveRound(slug: string): Promise<ActiveRound | null> {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (!apiUrl) return null;
+  try {
+    const res = await fetch(`${apiUrl}/markets/slug/${slug}`, {
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const m = data.market;
+    if (!m?.current_round_id || !m?.start_price) return null;
+    return {
+      roundId:    m.current_round_id,
+      startPrice: parseFloat(m.start_price),
+      closesAt:   m.closes_at,
+    };
+  } catch {
+    return null;
+  }
+}

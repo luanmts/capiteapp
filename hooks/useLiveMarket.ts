@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { settleMarket } from "@/lib/settlementApi";
+import { fetchActiveRound } from "@/lib/marketsApi";
 
 export type MarketPhase = "pre" | "live" | "transitioning" | "closed";
 
@@ -13,115 +14,165 @@ export interface LiveMarketState {
   currentPrice: number;
   priceDelta: number;
   priceHistory: Array<{ t: number; price: number }>;
-  /** Label of the slot that just became active, set for 3s after roll-over */
   newSlotLabel: string | null;
-  /** Increments each new round — use as React key to re-trigger entry animations */
   roundKey: number;
-  /** Direction of the round that just resolved; set for ~1000ms after roll-over */
   resolvedDirection: "up" | "down" | "cancelled" | null;
 }
 
-// Mock BTC prices — simulates a live tracking window already in progress
-const BTC_PRICE_TO_BEAT = 70_548.32; // price recorded at window open
-const BTC_CURRENT_START = 70_604.9; // current price when component mounts
+const TRANSITION_HOLD_MS = 2_000;
+const SLUG = "bitcoin-70k-5min";
 
-function randomWalk(prev: number): number {
-  // Small random walk with very slight upward bias
-  return prev + (Math.random() - 0.47) * 14;
+async function fetchBinancePrice(): Promise<number | null> {
+  try {
+    const res = await fetch(
+      "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT",
+      { cache: "no-store" }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const price = parseFloat(data.price);
+    return isNaN(price) ? null : price;
+  } catch {
+    return null;
+  }
 }
 
-// Returns the close timestamp of the current 5-minute window
 function currentWindowClose(): number {
   const STEP = 5 * 60 * 1000;
   return Math.floor(Date.now() / STEP) * STEP + STEP;
 }
 
-// How long to show the transition toast after the window rolls over (ms)
-const TRANSITION_HOLD_MS = 2_000;
-
-export function useLiveMarket(_closesAt: string, _isLive: boolean, marketId?: string): LiveMarketState {
-  const priceRef        = useRef(BTC_CURRENT_START);
-  const priceTobeatRef  = useRef(BTC_PRICE_TO_BEAT);
+export function useLiveMarket(
+  _closesAt: string,
+  _isLive: boolean,
+  _marketId?: string
+): LiveMarketState {
+  const priceRef        = useRef<number>(0);
+  const priceTobeatRef  = useRef<number>(0);
+  const roundIdRef      = useRef<string | null>(null);
   const phaseRef        = useRef<MarketPhase>("live");
   const prevCloseMs     = useRef(currentWindowClose());
   const transitionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const initializedRef  = useRef(false);
 
   const [state, setState] = useState<LiveMarketState>({
     phase: "live",
     minsLeft: 4,
     secsLeft: 59,
-    priceTobeat: BTC_PRICE_TO_BEAT,
-    currentPrice: BTC_CURRENT_START,
-    priceDelta: BTC_CURRENT_START - BTC_PRICE_TO_BEAT,
+    priceTobeat: 0,
+    currentPrice: 0,
+    priceDelta: 0,
     priceHistory: [],
     newSlotLabel: null,
     roundKey: 0,
     resolvedDirection: null,
   });
 
+  // Busca round ativo e preço inicial do banco
+  const initRound = useCallback(async () => {
+    const [round, price] = await Promise.all([
+      fetchActiveRound(SLUG),
+      fetchBinancePrice(),
+    ]);
+
+    if (round) {
+      priceTobeatRef.current = round.startPrice;
+      roundIdRef.current     = round.roundId;
+    }
+    if (price) {
+      priceRef.current = price;
+    } else if (round) {
+      // Fallback: usa startPrice como currentPrice se Binance falhar
+      priceRef.current = round.startPrice;
+    }
+
+    initializedRef.current = true;
+
+    setState((prev) => ({
+      ...prev,
+      priceTobeat:  priceTobeatRef.current,
+      currentPrice: priceRef.current,
+      priceDelta:   priceRef.current - priceTobeatRef.current,
+    }));
+  }, []);
+
   useEffect(() => {
-    const interval = setInterval(() => {
+    initRound();
+  }, [initRound]);
+
+  useEffect(() => {
+    const interval = setInterval(async () => {
+      if (!initializedRef.current) return;
+
       const closeMs   = currentWindowClose();
       const now       = Date.now();
       const remaining = Math.max(0, closeMs - now);
 
-      priceRef.current = randomWalk(priceRef.current);
-      const newPrice = priceRef.current;
+      // Busca preço real da Binance
+      const newPrice = await fetchBinancePrice();
+      if (newPrice) priceRef.current = newPrice;
 
-      // Detect window roll-over: close timestamp changed to a new 5-min slot
+      // Detecta virada de round
       if (closeMs !== prevCloseMs.current) {
         prevCloseMs.current = closeMs;
 
-        // Capture direction BEFORE updating priceTobeatRef
-        // Tie (delta < $0.01) → cancelled with full refund
-        const delta = newPrice - priceTobeatRef.current;
+        const delta = priceRef.current - priceTobeatRef.current;
         const finalDirection: "up" | "down" | "cancelled" =
           Math.abs(delta) < 0.01 ? "cancelled" : delta > 0 ? "up" : "down";
 
-        priceTobeatRef.current = newPrice;
+        // Settle do round anterior
+        const token = typeof window !== "undefined"
+          ? localStorage.getItem("capite_token")
+          : null;
 
-        // Build new slot label: the start of this window HH:MM
+        if (token && roundIdRef.current) {
+          const outcome = finalDirection === "up"
+            ? "yes"
+            : finalDirection === "down"
+            ? "no"
+            : "cancelled";
+          settleMarket(roundIdRef.current, outcome, token);
+        }
+
+        // Busca novo round do banco
+        const newRound = await fetchActiveRound(SLUG);
+        if (newRound) {
+          priceTobeatRef.current = newRound.startPrice;
+          roundIdRef.current     = newRound.roundId;
+        } else {
+          // Fallback: usa preço atual como novo startPrice
+          priceTobeatRef.current = priceRef.current;
+        }
+
         const slotStart = new Date(closeMs - 5 * 60 * 1000);
         const newLabel  = `${String(slotStart.getHours()).padStart(2, "0")}:${String(slotStart.getMinutes()).padStart(2, "0")}`;
 
-        // Notifica o backend sobre o resultado do round (fire-and-forget)
-        if (marketId) {
-          const token = typeof window !== "undefined" ? localStorage.getItem("capite_token") : null;
-          if (token) {
-            const outcome = finalDirection === "up" ? "yes" : finalDirection === "down" ? "no" : "cancelled";
-            settleMarket(marketId, outcome, token);
-          }
-        }
-
-        // Transitioning: blur + feedback
         phaseRef.current = "transitioning";
         if (transitionTimer.current) clearTimeout(transitionTimer.current);
         transitionTimer.current = setTimeout(() => {
           phaseRef.current = "live";
           setState((prev) => ({
             ...prev,
-            phase: "live",
-            newSlotLabel: newLabel,
-            roundKey: prev.roundKey + 1,
+            phase:             "live",
+            newSlotLabel:      newLabel,
+            roundKey:          prev.roundKey + 1,
             resolvedDirection: finalDirection,
           }));
-          // Clear badge after 3 s
           setTimeout(() => setState((prev) => ({ ...prev, newSlotLabel: null })), 3_000);
-          // Clear resolvedDirection after 1000 ms
           setTimeout(() => setState((prev) => ({ ...prev, resolvedDirection: null })), 1_000);
         }, TRANSITION_HOLD_MS);
       }
 
       setState((prev) => ({
-        phase: phaseRef.current,
-        minsLeft: Math.floor(remaining / 60000),
-        secsLeft: Math.floor((remaining % 60000) / 1000),
-        priceTobeat: priceTobeatRef.current,
-        currentPrice: newPrice,
-        priceDelta: newPrice - priceTobeatRef.current,
-        priceHistory: [...prev.priceHistory, { t: now, price: newPrice }].slice(-180),
+        phase:        phaseRef.current,
+        minsLeft:     Math.floor(remaining / 60000),
+        secsLeft:     Math.floor((remaining % 60000) / 1000),
+        priceTobeat:  priceTobeatRef.current,
+        currentPrice: priceRef.current,
+        priceDelta:   priceRef.current - priceTobeatRef.current,
+        priceHistory: [...prev.priceHistory, { t: now, price: priceRef.current }].slice(-180),
         newSlotLabel: prev.newSlotLabel,
-        roundKey: prev.roundKey,
+        roundKey:     prev.roundKey,
         resolvedDirection: prev.resolvedDirection,
       }));
     }, 1000);
