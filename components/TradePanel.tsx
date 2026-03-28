@@ -17,9 +17,11 @@ interface TradePanelProps {
   controlledSelection?: { sel: Selection; dir: "sim" | "nao" } | null;
   /** When false, the prediction form is dimmed and the submit button is disabled */
   predictionsOpen?: boolean;
+  /** Para mercados recorrentes: ID do round ativo a ser enviado para o backend */
+  resolvedMarketId?: string;
 }
 
-export default function TradePanel({ market, controlledSelection, predictionsOpen = true }: TradePanelProps) {
+export default function TradePanel({ market, controlledSelection, predictionsOpen = true, resolvedMarketId }: TradePanelProps) {
   const { user, login } = useAuth();
   const { balance, placeBet } = useBets();
   const [authOpen, setAuthOpen] = useState(false);
@@ -238,6 +240,7 @@ export default function TradePanel({ market, controlledSelection, predictionsOpe
               setBetState("loading");
               const result = await placeBet({
                 marketId: market.id,
+                resolvedMarketId,
                 marketTitle: market.title,
                 marketIcon: market.icon,
                 marketImageUrl: market.imageUrl,

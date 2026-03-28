@@ -22,6 +22,8 @@ export interface Bet {
 
 interface PlaceBetParams {
   marketId: string;
+  /** Para mercados recorrentes: ID do round ativo. Se presente, substitui marketId no payload da API. */
+  resolvedMarketId?: string;
   marketTitle: string;
   marketIcon?: string;
   marketImageUrl?: string;
@@ -112,10 +114,10 @@ export function BetsProvider({ children }: { children: ReactNode }) {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            marketId:   params.marketId,
-            side:       params.isFirstSelection ? "yes" : "no",
-            stake:      params.amount,
-            oddLocked:  params.odd,
+            marketId:  params.resolvedMarketId ?? params.marketId,
+            side:      params.isFirstSelection ? "yes" : "no",
+            stake:     params.amount,
+            oddLocked: params.odd,
           }),
         });
 

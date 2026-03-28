@@ -81,6 +81,7 @@ function StickyActionBar({
   upSel,
   downSel,
   marketId,
+  resolvedMarketId,
   marketTitle,
   marketIcon,
   marketImageUrl,
@@ -93,6 +94,7 @@ function StickyActionBar({
   upSel: Selection | undefined;
   downSel: Selection | undefined;
   marketId: string;
+  resolvedMarketId?: string;
   marketTitle: string;
   marketIcon?: string;
   marketImageUrl?: string;
@@ -170,6 +172,7 @@ function StickyActionBar({
         upSel={upSel}
         downSel={downSel}
         marketId={marketId}
+        resolvedMarketId={resolvedMarketId}
         marketTitle={marketTitle}
         marketIcon={marketIcon}
         marketImageUrl={marketImageUrl}
@@ -187,7 +190,7 @@ function StickyActionBar({
 function LiveCryptoView({ market }: { market: Market }) {
   const {
     phase, minsLeft, secsLeft, priceTobeat, currentPrice, priceDelta,
-    priceHistory, newSlotLabel, roundKey, resolvedDirection,
+    priceHistory, newSlotLabel, roundKey, resolvedDirection, roundId,
   } = useLiveMarket(market.closesAt, market.live === 1, market.id);
 
   const { resolveBetsForMarket, cancelBetsForMarket } = useBets();
@@ -516,7 +519,7 @@ function LiveCryptoView({ market }: { market: Market }) {
       {/* ── RIGHT COLUMN (desktop) ── */}
       <div className="hidden lg:block lg:w-80 xl:w-96 shrink-0">
         <div className="sticky top-20">
-          <TradePanel market={market} />
+          <TradePanel market={market} resolvedMarketId={roundId ?? undefined} />
         </div>
       </div>
 
@@ -524,6 +527,7 @@ function LiveCryptoView({ market }: { market: Market }) {
         upSel={upSel}
         downSel={downSel}
         marketId={market.id}
+        resolvedMarketId={roundId ?? undefined}
         marketTitle={market.title}
         marketIcon={market.icon}
         marketImageUrl={market.imageUrl}

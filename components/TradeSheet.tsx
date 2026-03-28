@@ -15,6 +15,8 @@ interface TradeSheetProps {
   upSel: Selection | undefined;
   downSel: Selection | undefined;
   marketId: string;
+  /** Para mercados recorrentes: ID do round ativo a ser enviado para o backend */
+  resolvedMarketId?: string;
   marketTitle: string;
   marketIcon?: string;
   marketImageUrl?: string;
@@ -29,6 +31,7 @@ export default function TradeSheet({
   upSel,
   downSel,
   marketId,
+  resolvedMarketId,
   marketTitle,
   marketIcon,
   marketImageUrl,
@@ -80,6 +83,7 @@ export default function TradeSheet({
     setBetState("loading");
     const result = await placeBet({
       marketId,
+      resolvedMarketId,
       marketTitle,
       marketIcon,
       marketImageUrl,

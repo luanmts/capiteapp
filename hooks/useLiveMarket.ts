@@ -17,6 +17,8 @@ export interface LiveMarketState {
   newSlotLabel: string | null;
   roundKey: number;
   resolvedDirection: "up" | "down" | "cancelled" | null;
+  /** ID do round ativo no banco — null até ser carregado */
+  roundId: string | null;
 }
 
 const TRANSITION_HOLD_MS = 2_000;
@@ -66,6 +68,7 @@ export function useLiveMarket(
     newSlotLabel: null,
     roundKey: 0,
     resolvedDirection: null,
+    roundId: null,
   });
 
   // Busca round ativo e preço inicial do banco
@@ -93,6 +96,7 @@ export function useLiveMarket(
       priceTobeat:  priceTobeatRef.current,
       currentPrice: priceRef.current,
       priceDelta:   priceRef.current - priceTobeatRef.current,
+      roundId:      roundIdRef.current,
     }));
   }, []);
 
@@ -174,6 +178,7 @@ export function useLiveMarket(
         newSlotLabel: prev.newSlotLabel,
         roundKey:     prev.roundKey,
         resolvedDirection: prev.resolvedDirection,
+        roundId:      roundIdRef.current,
       }));
     }, 1000);
 
