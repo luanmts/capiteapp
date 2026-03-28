@@ -49,14 +49,6 @@ export default function TradeSheet({
   const isUp = direction === "up";
   const toWin = selection ? +(amount * selection.odd).toFixed(2) : 0;
 
-  console.log("[ODDS UI]", {
-    source: "TradeSheet",
-    marketId,
-    displayedYesOdd: upSel?.odd,
-    displayedNoOdd: downSel?.odd,
-    selectedOdd: selection?.odd,
-  });
-
   useEffect(() => {
     if (isOpen) {
       requestAnimationFrame(() => requestAnimationFrame(() => setVisible(true)));
@@ -90,15 +82,6 @@ export default function TradeSheet({
       setTimeout(() => setBetError(null), 3000);
       return;
     }
-
-    // LOG TEMPORÁRIO — remover após validar no Supabase
-    console.log("[BET FLOW] TradeSheet.placeBet", {
-      marketId,
-      resolvedMarketId,
-      finalMarketId: resolvedMarketId ?? marketId,
-      amount,
-      direction,
-    });
 
     setBetState("loading");
     const result = await placeBet({

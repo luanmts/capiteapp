@@ -34,13 +34,6 @@ export default function TradePanel({ market, controlledSelection, predictionsOpe
 
   const isControlled = market.displayType === "stories-range";
 
-  console.log("[ODDS UI]", {
-    source: "TradePanel",
-    marketId: market.id,
-    displayedYesOdd: market.selections[0]?.odd,
-    displayedNoOdd: market.selections[1]?.odd,
-  });
-
   // For controlled mode: derive the effective odd from the chosen direction
   const controlledOdd = controlledSelection
     ? controlledSelection.dir === "sim"
@@ -245,14 +238,6 @@ export default function TradePanel({ market, controlledSelection, predictionsOpe
               const isFirst = isControlled
                 ? false
                 : market.selections[0]?.id === selectedId;
-
-              // LOG TEMPORÁRIO — remover após validar no Supabase
-              console.log("[BET FLOW] TradePanel.placeBet", {
-                marketId:         market.id,
-                resolvedMarketId,
-                finalMarketId:    resolvedMarketId ?? market.id,
-                amount,
-              });
 
               setBetState("loading");
               const result = await placeBet({

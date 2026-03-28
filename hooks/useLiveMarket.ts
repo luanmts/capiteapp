@@ -4,6 +4,22 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { settleMarket } from "@/lib/settlementApi";
 import { fetchActiveRound, fetchRoundOdds } from "@/lib/marketsApi";
 
+// Preço padrão (Bitcoin via Binance) — exportado para uso como valor default
+async function fetchBinancePriceDefault(): Promise<number | null> {
+  try {
+    const res = await fetch(
+      "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT",
+      { cache: "no-store" }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const price = parseFloat(data.price);
+    return isNaN(price) ? null : price;
+  } catch {
+    return null;
+  }
+}
+
 export type MarketPhase = "pre" | "live" | "transitioning" | "closed";
 
 export interface LiveMarketState {
@@ -25,22 +41,6 @@ export interface LiveMarketState {
 }
 
 const TRANSITION_HOLD_MS = 2_000;
-const SLUG = "bitcoin-70k-5min";
-
-async function fetchBinancePrice(): Promise<number | null> {
-  try {
-    const res = await fetch(
-      "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT",
-      { cache: "no-store" }
-    );
-    if (!res.ok) return null;
-    const data = await res.json();
-    const price = parseFloat(data.price);
-    return isNaN(price) ? null : price;
-  } catch {
-    return null;
-  }
-}
 
 function currentWindowClose(): number {
   const STEP = 5 * 60 * 1000;
@@ -50,7 +50,8 @@ function currentWindowClose(): number {
 export function useLiveMarket(
   _closesAt: string,
   _isLive: boolean,
-  _marketId?: string
+  templateSlug: string = "bitcoin-70k-5min",
+  fetchCurrentPrice: () => Promise<number | null> = fetchBinancePriceDefault,
 ): LiveMarketState & { refreshOdds: () => Promise<void> } {
   const priceRef        = useRef<number>(0);
   const priceTobeatRef  = useRef<number>(0);
@@ -60,6 +61,8 @@ export function useLiveMarket(
   const transitionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const initializedRef  = useRef(false);
   const tickRef         = useRef(0);
+  const slugRef         = useRef(templateSlug);
+  const fetchPriceRef   = useRef(fetchCurrentPrice);
 
   const [state, setState] = useState<LiveMarketState>({
     phase: "live",
@@ -80,8 +83,8 @@ export function useLiveMarket(
   // Busca round ativo e preço inicial do banco
   const initRound = useCallback(async () => {
     const [round, price] = await Promise.all([
-      fetchActiveRound(SLUG),
-      fetchBinancePrice(),
+      fetchActiveRound(slugRef.current),
+      fetchPriceRef.current(),
     ]);
 
     if (round) {
@@ -102,14 +105,6 @@ export function useLiveMarket(
       currentYesOdd = odds.currentYesOdd;
       currentNoOdd  = odds.currentNoOdd;
     }
-
-    console.log("[ODDS UI]", {
-      source: "useLiveMarket.initRound",
-      slug: SLUG,
-      roundId: round?.roundId ?? null,
-      currentYesOdd,
-      currentNoOdd,
-    });
 
     initializedRef.current = true;
 
@@ -132,12 +127,6 @@ export function useLiveMarket(
   const refreshOdds = useCallback(async () => {
     if (!roundIdRef.current) return;
     const odds = await fetchRoundOdds(roundIdRef.current);
-    console.log("[ODDS UI]", {
-      source: "useLiveMarket.refreshOdds",
-      roundId: roundIdRef.current,
-      currentYesOdd: odds.currentYesOdd,
-      currentNoOdd:  odds.currentNoOdd,
-    });
     setState((prev) => ({
       ...prev,
       currentYesOdd: odds.currentYesOdd,
@@ -153,8 +142,8 @@ export function useLiveMarket(
       const now       = Date.now();
       const remaining = Math.max(0, closeMs - now);
 
-      // Busca preço real da Binance
-      const newPrice = await fetchBinancePrice();
+      // Busca preço atual do ativo
+      const newPrice = await fetchPriceRef.current();
       if (newPrice) priceRef.current = newPrice;
 
       // A cada 10s, atualiza odds do round ativo
@@ -193,7 +182,7 @@ export function useLiveMarket(
         }
 
         // Busca novo round do banco
-        const newRound = await fetchActiveRound(SLUG);
+        const newRound = await fetchActiveRound(slugRef.current);
         if (newRound) {
           priceTobeatRef.current = newRound.startPrice;
           roundIdRef.current     = newRound.roundId;

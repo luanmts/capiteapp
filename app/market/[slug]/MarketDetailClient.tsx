@@ -15,6 +15,7 @@ import TradePanel from "@/components/TradePanel";
 import TradeSheet from "@/components/TradeSheet";
 import OddsDisplay from "@/components/OddsDisplay";
 import { useLiveMarket } from "@/hooks/useLiveMarket";
+import { fetchOilPrice } from "@/lib/marketsApi";
 import { useMarketResolution } from "@/hooks/useMarketResolution";
 import { useTimer } from "@/hooks/useTimer";
 import HowItWorks from "@/components/how-it-works";
@@ -191,11 +192,13 @@ function StickyActionBar({
 
 // ── Live Crypto Layout ─────────────────────────────────────────────────────────
 function LiveCryptoView({ market }: { market: Market }) {
+  const priceFetcher = market.slug === "petroleo-5min" ? fetchOilPrice : undefined;
+
   const {
     phase, minsLeft, secsLeft, priceTobeat, currentPrice, priceDelta,
     priceHistory, newSlotLabel, roundKey, resolvedDirection, roundId,
     currentYesOdd, currentNoOdd, refreshOdds,
-  } = useLiveMarket(market.closesAt, market.live === 1, market.id);
+  } = useLiveMarket(market.closesAt, market.live === 1, market.slug, priceFetcher);
 
   const { resolveBetsForMarket, cancelBetsForMarket } = useBets();
   const lastResolvedRoundRef = useRef(-1);
@@ -231,17 +234,6 @@ function LiveCryptoView({ market }: { market: Market }) {
     })),
   };
 
-  console.log("[ODDS UI]", {
-    source: "LiveCryptoView",
-    marketId: market.id,
-    roundId,
-    displayedYesOdd: upSel.odd,
-    displayedNoOdd: downSel.odd,
-    marketYesOdd: market.selections[0]?.odd,
-    marketNoOdd: market.selections[1]?.odd,
-    currentYesOdd,
-    currentNoOdd,
-  });
   const lineColor       = isUp ? "#4ade80" : "#f87171";
   const timerColor      = phase === "live" ? "text-red-500" : "text-text-tint";
   const timerSep        = phase === "live" ? "text-red-500/50" : "text-text-tint/30";

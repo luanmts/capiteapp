@@ -82,6 +82,24 @@ export interface ActiveRound {
 }
 
 /**
+ * Busca o preço atual do Petróleo WTI via proxy do backend (evita CORS).
+ * Retorna null se indisponível — nunca lança exceção.
+ */
+export async function fetchOilPrice(): Promise<number | null> {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (!apiUrl) return null;
+  try {
+    const res = await fetch(`${apiUrl}/prices/oil`, { cache: "no-store" });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const price = parseFloat(data.price);
+    return isNaN(price) ? null : price;
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Busca as odds atuais de um round específico.
  * Retorna nulls se indisponível — nunca lança exceção.
  */
