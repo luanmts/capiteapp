@@ -144,6 +144,22 @@ export function useLiveMarket(
     initRound();
   }, [initRound]);
 
+  // Timer independente — atualiza minsLeft/secsLeft a cada 250ms sem await
+  // Desacopla completamente o countdown das chamadas assíncronas de preço
+  useEffect(() => {
+    const timerInterval = setInterval(() => {
+      const closeMs   = currentWindowClose();
+      const remaining = Math.max(0, closeMs - Date.now());
+      const newMins   = Math.floor(remaining / 60000);
+      const newSecs   = Math.floor((remaining % 60000) / 1000);
+      setState((prev) => {
+        if (prev.minsLeft === newMins && prev.secsLeft === newSecs) return prev;
+        return { ...prev, minsLeft: newMins, secsLeft: newSecs };
+      });
+    }, 250);
+    return () => clearInterval(timerInterval);
+  }, []);
+
   // Refresh manual das odds — chamado após aposta bem-sucedida
   const refreshOdds = useCallback(async () => {
     if (!roundIdRef.current) return;
@@ -159,9 +175,8 @@ export function useLiveMarket(
     const interval = setInterval(async () => {
       if (!initializedRef.current) return;
 
-      const closeMs   = currentWindowClose();
-      const now       = Date.now();
-      const remaining = Math.max(0, closeMs - now);
+      const closeMs = currentWindowClose();
+      const now     = Date.now();
 
       // Busca preço atual do ativo
       const newPrice = await fetchPriceRef.current();
@@ -231,21 +246,21 @@ export function useLiveMarket(
         }, TRANSITION_HOLD_MS);
       }
 
-      setState((prev) => ({
-        phase:        phaseRef.current,
-        minsLeft:     Math.floor(remaining / 60000),
-        secsLeft:     Math.floor((remaining % 60000) / 1000),
-        priceTobeat:  priceTobeatRef.current,
-        currentPrice: priceRef.current,
-        priceDelta:   priceRef.current - priceTobeatRef.current,
-        priceHistory: [...prev.priceHistory, { t: now, price: priceRef.current }].slice(-180),
-        newSlotLabel: prev.newSlotLabel,
-        roundKey:     prev.roundKey,
-        resolvedDirection: prev.resolvedDirection,
-        roundId:       roundIdRef.current,
-        currentYesOdd: prev.currentYesOdd,
-        currentNoOdd:  prev.currentNoOdd,
-      }));
+      setState((prev) => {
+        // Adiciona ao histórico a cada 5 ticks (~5s) — reduz recálculo do gráfico
+        const newHistory = tickRef.current % 5 === 0
+          ? [...prev.priceHistory, { t: now, price: priceRef.current }].slice(-180)
+          : prev.priceHistory;
+        return {
+          ...prev,
+          phase:        phaseRef.current,
+          priceTobeat:  priceTobeatRef.current,
+          currentPrice: priceRef.current,
+          priceDelta:   priceRef.current - priceTobeatRef.current,
+          priceHistory: newHistory,
+          roundId:      roundIdRef.current,
+        };
+      });
     }, 1000);
 
     return () => {

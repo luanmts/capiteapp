@@ -1,5 +1,7 @@
 "use client";
 
+import React from "react";
+
 interface DataPoint {
   t: number;
   price: number;
@@ -11,7 +13,7 @@ interface PriceChartProps {
   lineColor?: string; // dynamic: green when up, red when down
 }
 
-export default function PriceChart({ history, priceTobeat, lineColor = "#f59e0b" }: PriceChartProps) {
+function PriceChartInner({ history, priceTobeat, lineColor = "#f59e0b" }: PriceChartProps) {
   if (history.length < 2) {
     return (
       <div className="h-44 flex items-center justify-center text-text-tint text-sm">
@@ -169,3 +171,14 @@ export default function PriceChart({ history, priceTobeat, lineColor = "#f59e0b"
     </svg>
   );
 }
+
+// Só re-renderiza quando o histórico cresceu, o target mudou ou a cor da linha mudou.
+// Evita recálculo do SVG a cada update de preço/timer.
+export default React.memo(PriceChartInner, (prev, next) => {
+  if (prev.priceTobeat !== next.priceTobeat) return false;
+  if (prev.lineColor   !== next.lineColor)   return false;
+  if (prev.history.length !== next.history.length) return false;
+  const lastPrev = prev.history[prev.history.length - 1];
+  const lastNext = next.history[next.history.length - 1];
+  return lastPrev?.price === lastNext?.price;
+});
