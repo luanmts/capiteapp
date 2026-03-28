@@ -10,10 +10,24 @@ interface DataPoint {
 interface PriceChartProps {
   history: DataPoint[];
   priceTobeat: number;
-  lineColor?: string; // dynamic: green when up, red when down
+  lineColor?: string;
+  usdRate?: number; // BRL/USD para display. 1 = exibe em USD
 }
 
-function PriceChartInner({ history, priceTobeat, lineColor = "#f59e0b" }: PriceChartProps) {
+/** Formata um valor USD para exibição no eixo Y. */
+function fmtLabel(usd: number, rate: number): string {
+  const v = usd * rate;
+  if (rate > 1) {
+    // BRL
+    if (v >= 1_000_000) return `R$${(v / 1_000_000).toFixed(2)}M`;
+    if (v >= 1_000)     return `R$${(v / 1_000).toFixed(2)}k`;
+    return `R$${v.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}`;
+  }
+  // USD
+  return `$${Math.round(v).toLocaleString("en")}`;
+}
+
+function PriceChartInner({ history, priceTobeat, lineColor = "#f59e0b", usdRate = 1 }: PriceChartProps) {
   if (history.length < 2) {
     return (
       <div className="h-44 flex items-center justify-center text-text-tint text-sm">
@@ -24,7 +38,7 @@ function PriceChartInner({ history, priceTobeat, lineColor = "#f59e0b" }: PriceC
 
   const W = 1000;
   const H = 220;
-  const PAD = { top: 12, right: 72, bottom: 28, left: 8 };
+  const PAD = { top: 12, right: 80, bottom: 28, left: 8 };
   const chartW = W - PAD.left - PAD.right;
   const chartH = H - PAD.top - PAD.bottom;
 
@@ -34,9 +48,10 @@ function PriceChartInner({ history, priceTobeat, lineColor = "#f59e0b" }: PriceC
   const rawMax = Math.max(...allPrices);
   const pureRange = rawMax - rawMin || 1;
   const currentP = prices[prices.length - 1];
-  // Padding dinâmico: 30% do range observado, mínimo 0.04% do preço atual
-  // Evita chart "vazio" em movimentos pequenos e não infla a escala em movimentos grandes
-  const pad = Math.max(pureRange * 0.3, currentP * 0.0004);
+
+  // Padding dinâmico: 40% do range observado, mínimo 0.003% do preço atual.
+  // Garante que o movimento real ocupa ~50% da altura, sem escala inflada.
+  const pad = Math.max(pureRange * 0.4, currentP * 0.00003);
   const minP = rawMin - pad;
   const maxP = rawMax + pad;
   const range = maxP - minP || 1;
@@ -122,13 +137,13 @@ function PriceChartInner({ history, priceTobeat, lineColor = "#f59e0b" }: PriceC
         fontSize={10}
         fontFamily="monospace"
       >
-        Target
+        Ref
       </text>
 
       {/* Area fill */}
       <path d={areaPath} fill="url(#pcGrad)" style={{ transition: "d 0.8s ease" }} />
 
-      {/* Price line — CSS transition on d interpola suavemente entre updates */}
+      {/* Price line */}
       <path
         d={linePath}
         fill="none"
@@ -164,7 +179,7 @@ function PriceChartInner({ history, priceTobeat, lineColor = "#f59e0b" }: PriceC
           fontSize={10}
           fontFamily="monospace"
         >
-          ${Math.round(l.price).toLocaleString("en")}
+          {fmtLabel(l.price, usdRate)}
         </text>
       ))}
 
@@ -186,11 +201,11 @@ function PriceChartInner({ history, priceTobeat, lineColor = "#f59e0b" }: PriceC
   );
 }
 
-// Só re-renderiza quando o histórico cresceu, o target mudou ou a cor da linha mudou.
-// Evita recálculo do SVG a cada update de preço/timer.
+// Re-renderiza quando: histórico cresceu, target/cor/rate mudaram
 export default React.memo(PriceChartInner, (prev, next) => {
   if (prev.priceTobeat !== next.priceTobeat) return false;
   if (prev.lineColor   !== next.lineColor)   return false;
+  if (prev.usdRate     !== next.usdRate)     return false;
   if (prev.history.length !== next.history.length) return false;
   const lastPrev = prev.history[prev.history.length - 1];
   const lastNext = next.history[next.history.length - 1];

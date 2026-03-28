@@ -200,6 +200,18 @@ function LiveCryptoView({ market }: { market: Market }) {
   const { resolveBetsForMarket, cancelBetsForMarket } = useBets();
   const lastResolvedRoundRef = useRef(-1);
 
+  // Taxa USD→BRL para exibição dos preços; fallback conservador 5.8
+  const [usdBrlRate, setUsdBrlRate] = useState(5.8);
+  useEffect(() => {
+    fetch("https://economia.awesomeapi.com.br/json/last/USD-BRL")
+      .then((r) => r.json())
+      .then((d) => {
+        const rate = parseFloat(d.USDBRL?.bid);
+        if (!isNaN(rate) && rate > 4) setUsdBrlRate(rate);
+      })
+      .catch(() => {});
+  }, []);
+
   const [slots, setSlots] = useState(() => buildSlots());
   useEffect(() => { setSlots(buildSlots()); }, [minsLeft]);
 
@@ -215,6 +227,13 @@ function LiveCryptoView({ market }: { market: Market }) {
   }, [resolvedDirection, roundKey, market.id, resolveBetsForMarket, cancelBetsForMarket]);
 
   const isUp = priceDelta >= 0;
+
+  /** Formata um preço USD → BRL abreviado para exibição */
+  function fmtBrl(usd: number): string {
+    const v = usd * usdBrlRate;
+    if (v >= 1_000) return `R$${(v / 1_000).toFixed(2)}k`;
+    return `R$${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
 
   // Usa odds ao vivo do round ativo; fallback para as odds do market inicial
   const upSel   = { ...market.selections[0], odd: currentYesOdd ?? market.selections[0]?.odd };
@@ -405,20 +424,20 @@ function LiveCryptoView({ market }: { market: Market }) {
               <div>
                 <p className="text-[9px] font-semibold text-text-tint/70 uppercase tracking-wider mb-1">Preço Inicial</p>
                 <p suppressHydrationWarning className="text-base font-bold text-white tabular-nums">
-                  ${priceTobeat.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  {fmtBrl(priceTobeat)}
                 </p>
               </div>
               <div className="text-right">
                 <p className="text-[9px] font-semibold text-text-tint/70 uppercase tracking-wider mb-1">Preço Atual</p>
                 <div className="flex items-center justify-end gap-1.5">
                   <p suppressHydrationWarning className={clsx("text-base font-bold tabular-nums", isUp ? "text-green-400" : "text-red-400")}>
-                    ${currentPrice.toLocaleString("en", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    {fmtBrl(currentPrice)}
                   </p>
                   <span suppressHydrationWarning className={clsx(
                     "flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold",
                     isUp ? "bg-green-500/15 text-green-400" : "bg-red-500/15 text-red-400"
                   )}>
-                    {isUp ? "▲" : "▼"} ${Math.abs(priceDelta).toFixed(2)}
+                    {isUp ? "▲" : "▼"} {fmtBrl(Math.abs(priceDelta))}
                   </span>
                 </div>
               </div>
@@ -431,7 +450,7 @@ function LiveCryptoView({ market }: { market: Market }) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
             >
-              <PriceChart history={priceHistory} priceTobeat={priceTobeat} lineColor={lineColor} />
+              <PriceChart history={priceHistory} priceTobeat={priceTobeat} lineColor={lineColor} usdRate={usdBrlRate} />
             </motion.div>
 
             {/* Time slots — active chip bounces + glows on new round */}
