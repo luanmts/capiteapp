@@ -90,6 +90,7 @@ function StickyActionBar({
   upIcon = "▲",
   downIcon = "▼",
   predictionsOpen = true,
+  onBetSuccess,
 }: {
   upSel: Selection | undefined;
   downSel: Selection | undefined;
@@ -103,6 +104,7 @@ function StickyActionBar({
   upIcon?: string;
   downIcon?: string;
   predictionsOpen?: boolean;
+  onBetSuccess?: () => void;
 }) {
   const { user, login } = useAuth();
   const [authOpen, setAuthOpen] = useState(false);
@@ -176,6 +178,7 @@ function StickyActionBar({
         marketTitle={marketTitle}
         marketIcon={marketIcon}
         marketImageUrl={marketImageUrl}
+        onBetSuccess={onBetSuccess}
       />
 
       <HowItWorks
@@ -191,6 +194,7 @@ function LiveCryptoView({ market }: { market: Market }) {
   const {
     phase, minsLeft, secsLeft, priceTobeat, currentPrice, priceDelta,
     priceHistory, newSlotLabel, roundKey, resolvedDirection, roundId,
+    currentYesOdd, currentNoOdd, refreshOdds,
   } = useLiveMarket(market.closesAt, market.live === 1, market.id);
 
   const { resolveBetsForMarket, cancelBetsForMarket } = useBets();
@@ -210,9 +214,34 @@ function LiveCryptoView({ market }: { market: Market }) {
     }
   }, [resolvedDirection, roundKey, market.id, resolveBetsForMarket, cancelBetsForMarket]);
 
-  const isUp            = priceDelta >= 0;
-  const upSel           = market.selections[0];
-  const downSel         = market.selections[1];
+  const isUp = priceDelta >= 0;
+
+  // Usa odds ao vivo do round ativo; fallback para as odds do market inicial
+  const upSel   = { ...market.selections[0], odd: currentYesOdd ?? market.selections[0]?.odd };
+  const downSel = { ...market.selections[1], odd: currentNoOdd  ?? market.selections[1]?.odd };
+
+  // Market com odds atualizadas para TradePanel (desktop)
+  const liveMarket = {
+    ...market,
+    selections: market.selections.map((sel, i) => ({
+      ...sel,
+      odd: i === 0 ? (currentYesOdd ?? sel.odd)
+         : i === 1 ? (currentNoOdd  ?? sel.odd)
+         : sel.odd,
+    })),
+  };
+
+  console.log("[ODDS UI]", {
+    source: "LiveCryptoView",
+    marketId: market.id,
+    roundId,
+    displayedYesOdd: upSel.odd,
+    displayedNoOdd: downSel.odd,
+    marketYesOdd: market.selections[0]?.odd,
+    marketNoOdd: market.selections[1]?.odd,
+    currentYesOdd,
+    currentNoOdd,
+  });
   const lineColor       = isUp ? "#4ade80" : "#f87171";
   const timerColor      = phase === "live" ? "text-red-500" : "text-text-tint";
   const timerSep        = phase === "live" ? "text-red-500/50" : "text-text-tint/30";
@@ -519,7 +548,7 @@ function LiveCryptoView({ market }: { market: Market }) {
       {/* ── RIGHT COLUMN (desktop) ── */}
       <div className="hidden lg:block lg:w-80 xl:w-96 shrink-0">
         <div className="sticky top-20">
-          <TradePanel market={market} resolvedMarketId={roundId ?? undefined} predictionsOpen={roundId !== null} />
+          <TradePanel market={liveMarket} resolvedMarketId={roundId ?? undefined} predictionsOpen={roundId !== null} onBetSuccess={refreshOdds} />
         </div>
       </div>
 
@@ -532,6 +561,7 @@ function LiveCryptoView({ market }: { market: Market }) {
         marketIcon={market.icon}
         marketImageUrl={market.imageUrl}
         predictionsOpen={roundId !== null}
+        onBetSuccess={refreshOdds}
       />
     </div>
   );

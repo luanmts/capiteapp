@@ -20,6 +20,8 @@ interface TradeSheetProps {
   marketTitle: string;
   marketIcon?: string;
   marketImageUrl?: string;
+  /** Chamado após aposta bem-sucedida — usado para atualizar odds na UI */
+  onBetSuccess?: () => void;
 }
 
 const PRESETS = [1, 5, 10, 100];
@@ -35,6 +37,7 @@ export default function TradeSheet({
   marketTitle,
   marketIcon,
   marketImageUrl,
+  onBetSuccess,
 }: TradeSheetProps) {
   const { balance, placeBet } = useBets();
   const [visible, setVisible] = useState(false);
@@ -45,6 +48,14 @@ export default function TradeSheet({
   const selection = direction === "up" ? upSel : downSel;
   const isUp = direction === "up";
   const toWin = selection ? +(amount * selection.odd).toFixed(2) : 0;
+
+  console.log("[ODDS UI]", {
+    source: "TradeSheet",
+    marketId,
+    displayedYesOdd: upSel?.odd,
+    displayedNoOdd: downSel?.odd,
+    selectedOdd: selection?.odd,
+  });
 
   useEffect(() => {
     if (isOpen) {
@@ -103,6 +114,7 @@ export default function TradeSheet({
     });
 
     if (result === "ok") {
+      onBetSuccess?.();
       setBetState("success");
       setTimeout(() => {
         setBetState("idle");

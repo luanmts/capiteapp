@@ -19,9 +19,11 @@ interface TradePanelProps {
   predictionsOpen?: boolean;
   /** Para mercados recorrentes: ID do round ativo a ser enviado para o backend */
   resolvedMarketId?: string;
+  /** Chamado após aposta bem-sucedida — usado para atualizar odds na UI */
+  onBetSuccess?: () => void;
 }
 
-export default function TradePanel({ market, controlledSelection, predictionsOpen = true, resolvedMarketId }: TradePanelProps) {
+export default function TradePanel({ market, controlledSelection, predictionsOpen = true, resolvedMarketId, onBetSuccess }: TradePanelProps) {
   const { user, login } = useAuth();
   const { balance, placeBet } = useBets();
   const [authOpen, setAuthOpen] = useState(false);
@@ -31,6 +33,13 @@ export default function TradePanel({ market, controlledSelection, predictionsOpe
   const [betError, setBetError] = useState<string | null>(null);
 
   const isControlled = market.displayType === "stories-range";
+
+  console.log("[ODDS UI]", {
+    source: "TradePanel",
+    marketId: market.id,
+    displayedYesOdd: market.selections[0]?.odd,
+    displayedNoOdd: market.selections[1]?.odd,
+  });
 
   // For controlled mode: derive the effective odd from the chosen direction
   const controlledOdd = controlledSelection
@@ -261,6 +270,7 @@ export default function TradePanel({ market, controlledSelection, predictionsOpe
               });
 
               if (result === "ok") {
+                onBetSuccess?.();
                 setBetState("success");
                 setTimeout(() => { setBetState("idle"); setAmount(0); }, 2000);
               } else {

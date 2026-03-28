@@ -82,6 +82,28 @@ export interface ActiveRound {
 }
 
 /**
+ * Busca as odds atuais de um round específico.
+ * Retorna nulls se indisponível — nunca lança exceção.
+ */
+export async function fetchRoundOdds(
+  roundId: string
+): Promise<{ currentYesOdd: number | null; currentNoOdd: number | null }> {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (!apiUrl) return { currentYesOdd: null, currentNoOdd: null };
+  try {
+    const res = await fetch(`${apiUrl}/markets/${roundId}`, { cache: "no-store" });
+    if (!res.ok) return { currentYesOdd: null, currentNoOdd: null };
+    const data = await res.json();
+    return {
+      currentYesOdd: data.market?.current_yes_odd ?? null,
+      currentNoOdd:  data.market?.current_no_odd  ?? null,
+    };
+  } catch {
+    return { currentYesOdd: null, currentNoOdd: null };
+  }
+}
+
+/**
  * Busca o round ativo do Bitcoin pelo slug do template.
  * Retorna null se indisponível — nunca lança exceção.
  */
