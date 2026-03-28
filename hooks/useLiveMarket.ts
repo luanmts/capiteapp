@@ -2,10 +2,9 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { settleMarket } from "@/lib/settlementApi";
-import { fetchActiveRound, fetchRoundOdds } from "@/lib/marketsApi";
+import { fetchActiveRound, fetchRoundOdds, fetchOilPrice } from "@/lib/marketsApi";
 
-// Preço padrão (Bitcoin via Binance) — exportado para uso como valor default
-async function fetchBinancePriceDefault(): Promise<number | null> {
+async function fetchBitcoinPrice(): Promise<number | null> {
   try {
     const res = await fetch(
       "https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT",
@@ -18,6 +17,12 @@ async function fetchBinancePriceDefault(): Promise<number | null> {
   } catch {
     return null;
   }
+}
+
+/** Seleciona a fonte de preço correta baseada no slug do template. */
+function selectPriceFetcher(slug: string): () => Promise<number | null> {
+  if (slug === "petroleo-5min") return fetchOilPrice;
+  return fetchBitcoinPrice;
 }
 
 export type MarketPhase = "pre" | "live" | "transitioning" | "closed";
@@ -51,7 +56,6 @@ export function useLiveMarket(
   _closesAt: string,
   _isLive: boolean,
   templateSlug: string = "bitcoin-70k-5min",
-  fetchCurrentPrice: () => Promise<number | null> = fetchBinancePriceDefault,
 ): LiveMarketState & { refreshOdds: () => Promise<void> } {
   const priceRef        = useRef<number>(0);
   const priceTobeatRef  = useRef<number>(0);
@@ -62,7 +66,8 @@ export function useLiveMarket(
   const initializedRef  = useRef(false);
   const tickRef         = useRef(0);
   const slugRef         = useRef(templateSlug);
-  const fetchPriceRef   = useRef(fetchCurrentPrice);
+  // Fonte de preço determinada internamente pelo slug — nunca herdada do exterior
+  const fetchPriceRef   = useRef(selectPriceFetcher(templateSlug));
 
   const [state, setState] = useState<LiveMarketState>({
     phase: "live",

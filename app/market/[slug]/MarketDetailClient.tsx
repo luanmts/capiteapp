@@ -15,7 +15,6 @@ import TradePanel from "@/components/TradePanel";
 import TradeSheet from "@/components/TradeSheet";
 import OddsDisplay from "@/components/OddsDisplay";
 import { useLiveMarket } from "@/hooks/useLiveMarket";
-import { fetchOilPrice } from "@/lib/marketsApi";
 import { useMarketResolution } from "@/hooks/useMarketResolution";
 import { useTimer } from "@/hooks/useTimer";
 import HowItWorks from "@/components/how-it-works";
@@ -192,13 +191,11 @@ function StickyActionBar({
 
 // ── Live Crypto Layout ─────────────────────────────────────────────────────────
 function LiveCryptoView({ market }: { market: Market }) {
-  const priceFetcher = market.slug === "petroleo-5min" ? fetchOilPrice : undefined;
-
   const {
     phase, minsLeft, secsLeft, priceTobeat, currentPrice, priceDelta,
     priceHistory, newSlotLabel, roundKey, resolvedDirection, roundId,
     currentYesOdd, currentNoOdd, refreshOdds,
-  } = useLiveMarket(market.closesAt, market.live === 1, market.slug, priceFetcher);
+  } = useLiveMarket(market.closesAt, market.live === 1, market.slug);
 
   const { resolveBetsForMarket, cancelBetsForMarket } = useBets();
   const lastResolvedRoundRef = useRef(-1);
