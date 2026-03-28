@@ -228,10 +228,16 @@ function LiveCryptoView({ market }: { market: Market }) {
 
   const isUp = priceDelta >= 0;
 
-  /** Formata um preço USD → BRL abreviado para exibição */
-  function fmtBrl(usd: number): string {
+  /** Preço cheio em BRL — sem abreviação. Usado em Preço Inicial e Preço Atual. */
+  function fmtBrlFull(usd: number): string {
     const v = usd * usdBrlRate;
-    if (v >= 1_000) return `R$${(v / 1_000).toFixed(2)}k`;
+    return `R$\u00a0${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+
+  /** Delta abreviado em BRL — usado no badge de variação. */
+  function fmtBrlDelta(usd: number): string {
+    const v = usd * usdBrlRate;
+    if (v >= 1_000) return `R$${(v / 1_000).toFixed(1)}k`;
     return `R$${v.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 
@@ -424,20 +430,20 @@ function LiveCryptoView({ market }: { market: Market }) {
               <div>
                 <p className="text-[9px] font-semibold text-text-tint/70 uppercase tracking-wider mb-1">Preço Inicial</p>
                 <p suppressHydrationWarning className="text-base font-bold text-white tabular-nums">
-                  {fmtBrl(priceTobeat)}
+                  {fmtBrlFull(priceTobeat)}
                 </p>
               </div>
               <div className="text-right">
                 <p className="text-[9px] font-semibold text-text-tint/70 uppercase tracking-wider mb-1">Preço Atual</p>
                 <div className="flex items-center justify-end gap-1.5">
                   <p suppressHydrationWarning className={clsx("text-base font-bold tabular-nums", isUp ? "text-green-400" : "text-red-400")}>
-                    {fmtBrl(currentPrice)}
+                    {fmtBrlFull(currentPrice)}
                   </p>
                   <span suppressHydrationWarning className={clsx(
                     "flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-bold",
                     isUp ? "bg-green-500/15 text-green-400" : "bg-red-500/15 text-red-400"
                   )}>
-                    {isUp ? "▲" : "▼"} {fmtBrl(Math.abs(priceDelta))}
+                    {isUp ? "▲" : "▼"} {fmtBrlDelta(Math.abs(priceDelta))}
                   </span>
                 </div>
               </div>
