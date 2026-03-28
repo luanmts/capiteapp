@@ -3,12 +3,12 @@
 /**
  * LiveChart — TradingView Lightweight Charts v5
  *
- * Fixes nesta versão:
- * - attributionLogo: false → remove o ícone TradingView do canto inferior esquerdo
- * - formatter Y sem abreviação → R$501.234 em vez de R$501k
- * - secondsVisible: true + tickMarkFormatter → eixo X em HH:MM:SS
- * - updates pós-seed via RAF exclusivamente (100ms) → elimina "trava→anda→trava"
- *   que vinha da irregularidade dos useEffect[history] disparados junto com o React render
+ * Fixes desta versão:
+ * - Label "Alvo": axisLabel agora é visível; title removido (mostrava "Ref" sem valor)
+ *   o valor real do target aparece no eixo Y via formatter + axisLabelColor visível
+ * - Cor dinâmica: useEffect([lineColor]) chama series.applyOptions → atualiza verde/vermelho
+ * - Linha suave: RAF sem throttle, 60fps; só chama series.update quando preço mudou
+ *   → linha move a 60fps (igual ao dot) enquanto WS estiver ativo
  */
 
 import { useEffect, useRef } from "react";
@@ -36,7 +36,7 @@ interface LiveChartProps {
   livePriceRef?: React.RefObject<number>;
 }
 
-const Y_WINDOW = 300; // últimos N pontos para range local (~30s @ 100ms)
+const Y_WINDOW = 300;
 
 function toChartData(pts: DataPoint[]) {
   const map = new Map<number, number>();
@@ -46,6 +46,15 @@ function toChartData(pts: DataPoint[]) {
     .map(([time, value]) => ({ time: time as UTCTimestamp, value }));
 }
 
+/** Desempacota #rrggbb → "r,g,b" para rgba() */
+function hexToRgb(hex: string): string {
+  const h = hex.startsWith("#") ? hex : "#f59e0b";
+  const r = parseInt(h.slice(1, 3), 16);
+  const g = parseInt(h.slice(3, 5), 16);
+  const b = parseInt(h.slice(5, 7), 16);
+  return `${r},${g},${b}`;
+}
+
 export default function LiveChart({
   history,
   priceTobeat,
@@ -53,59 +62,64 @@ export default function LiveChart({
   usdRate = 1,
   livePriceRef,
 }: LiveChartProps) {
-  const containerRef    = useRef<HTMLDivElement>(null);
-  const chartRef        = useRef<IChartApi | null>(null);
-  const seriesRef       = useRef<ISeriesApi<"Area"> | null>(null);
-  const priceLineRef    = useRef<IPriceLine | null>(null);
-  const lastTimeRef     = useRef<UTCTimestamp>(0 as UTCTimestamp);
-  const seededRef       = useRef(false);
+  const containerRef   = useRef<HTMLDivElement>(null);
+  const chartRef       = useRef<IChartApi | null>(null);
+  const seriesRef      = useRef<ISeriesApi<"Area"> | null>(null);
+  const priceLineRef   = useRef<IPriceLine | null>(null);
+  const lastTimeRef    = useRef<UTCTimestamp>(0 as UTCTimestamp);
+  const seededRef      = useRef(false);
+  const lastPriceRef   = useRef(0); // rastreia última escrita no RAF → evita update desnecessário
 
-  // Refs sempre frescos — lidos em closures sem stale value
-  const historyRef      = useRef(history);
-  const priceTobeatRef  = useRef(priceTobeat);
-  const rateRef         = useRef(usdRate);
+  // Refs frescos — lidos por closures sem stale value
+  const historyRef     = useRef(history);
+  const priceTobeatRef = useRef(priceTobeat);
+  const rateRef        = useRef(usdRate);
   historyRef.current    = history;
   priceTobeatRef.current = priceTobeat;
   rateRef.current       = usdRate;
 
-  // ── Formatter Y (eixo direito) ───────────────────────────────────────────
-  // Valor completo sem abreviação: R$501.234 em vez de R$501k
+  // ── Formatter Y ──────────────────────────────────────────────────────────
   const fmt = (p: number) => {
     if (!p || isNaN(p)) return "";
     const v = p * rateRef.current;
-    if (rateRef.current > 1) {
-      // pt-BR: ponto como separador de milhar, sem decimais
-      return `R$${Math.round(v).toLocaleString("pt-BR")}`;
-    }
+    if (rateRef.current > 1) return `R$${Math.round(v).toLocaleString("pt-BR")}`;
     return `$${Math.round(v).toLocaleString("en")}`;
   };
 
-  // ── Init chart (uma única vez no mount) ──────────────────────────────────
+  // ── Helper para criar/recriar a priceLine "Alvo" ─────────────────────────
+  const createPriceLine = (series: ISeriesApi<"Area">, price: number): IPriceLine => {
+    return series.createPriceLine({
+      price,
+      color:              "rgba(255,255,255,0.35)",
+      lineWidth:          1,
+      lineStyle:          LineStyle.Dashed,
+      axisLabelVisible:   true,
+      title:              "Alvo",          // label visível no eixo direito
+      axisLabelColor:     "rgba(80,80,100,0.85)",  // fundo do badge no eixo
+      axisLabelTextColor: "rgba(255,255,255,0.85)", // texto do badge
+    });
+  };
+
+  // ── Init chart (uma única vez) ────────────────────────────────────────────
   useEffect(() => {
     if (!containerRef.current) return;
     const container = containerRef.current;
-
-    const hex = lineColor.startsWith("#") ? lineColor : "#f59e0b";
-    const r = parseInt(hex.slice(1, 3), 16);
-    const g = parseInt(hex.slice(3, 5), 16);
-    const b = parseInt(hex.slice(5, 7), 16);
 
     const chart = createChart(container, {
       width:  container.offsetWidth,
       height: 180,
       layout: {
-        background:       { color: "transparent" },
-        textColor:        "rgba(255,255,255,0.4)",
-        fontFamily:       "'Inter', 'system-ui', monospace",
-        fontSize:         11,
-        // ← remove o ícone "TradingView" do canto inferior esquerdo
-        attributionLogo:  false,
+        background:      { color: "transparent" },
+        textColor:       "rgba(255,255,255,0.4)",
+        fontFamily:      "'Inter', 'system-ui', monospace",
+        fontSize:        11,
+        attributionLogo: false,
       },
       grid: {
         vertLines: { visible: false },
         horzLines: { color: "rgba(255,255,255,0.04)" },
       },
-      leftPriceScale:  { visible: false }, // garante que não fica nenhuma escala à esq.
+      leftPriceScale:  { visible: false },
       rightPriceScale: {
         borderVisible: false,
         scaleMargins:  { top: 0.08, bottom: 0.08 },
@@ -113,12 +127,10 @@ export default function LiveChart({
       timeScale: {
         borderVisible:   false,
         timeVisible:     true,
-        secondsVisible:  true,  // ← habilita resolução de segundos no eixo X
+        secondsVisible:  true,
         fixLeftEdge:     true,
         fixRightEdge:    true,
-        // Formatter do eixo X → sempre HH:MM:SS
         tickMarkFormatter: (time: Time, type: TickMarkType) => {
-          // Ignorar tick marks de alto nível (ano, mês, dia) — mostra só hora
           if (type === TickMarkType.Year || type === TickMarkType.Month) return null;
           const ts = typeof time === "number" ? time : 0;
           const d  = new Date(ts * 1000);
@@ -139,10 +151,11 @@ export default function LiveChart({
 
     chartRef.current = chart;
 
+    const rgb = hexToRgb(lineColor);
     const series = chart.addSeries(AreaSeries, {
       lineColor,
-      topColor:    `rgba(${r},${g},${b},0.22)`,
-      bottomColor: `rgba(${r},${g},${b},0)`,
+      topColor:    `rgba(${rgb},0.22)`,
+      bottomColor: `rgba(${rgb},0)`,
       lineWidth:   2,
       lineStyle:   LineStyle.Solid,
       lastPriceAnimation: LastPriceAnimationMode.Continuous,
@@ -153,7 +166,6 @@ export default function LiveChart({
         formatter: fmt,
         minMove:   1,
       },
-      // autoscaleInfoProvider: zoom local — lê historyRef (sempre fresco)
       autoscaleInfoProvider: () => {
         const recent = historyRef.current.slice(-Y_WINDOW);
         if (recent.length < 2) return null;
@@ -173,24 +185,12 @@ export default function LiveChart({
 
     seriesRef.current = series;
 
-    // Linha de referência — criada aqui só se priceTobeat já chegou
     if (priceTobeatRef.current > 0) {
-      priceLineRef.current = series.createPriceLine({
-        price:              priceTobeatRef.current,
-        color:              "rgba(255,255,255,0.28)",
-        lineWidth:          1,
-        lineStyle:          LineStyle.Dashed,
-        axisLabelVisible:   true,
-        title:              "Ref",
-        axisLabelColor:     "rgba(255,255,255,0.22)",
-        axisLabelTextColor: "rgba(255,255,255,0.6)",
-      });
+      priceLineRef.current = createPriceLine(series, priceTobeatRef.current);
     }
 
     const ro = new ResizeObserver(() => {
-      if (container.offsetWidth > 0) {
-        chart.applyOptions({ width: container.offsetWidth });
-      }
+      if (container.offsetWidth > 0) chart.applyOptions({ width: container.offsetWidth });
     });
     ro.observe(container);
 
@@ -202,12 +202,12 @@ export default function LiveChart({
       priceLineRef.current = null;
       seededRef.current    = false;
       lastTimeRef.current  = 0 as UTCTimestamp;
+      lastPriceRef.current = 0;
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Seed inicial: único momento em que setData é chamado ─────────────────
-  // Depois do seed, TODOS os updates vêm do RAF (caminho único → sem jitter React)
+  // ── Seed inicial (único setData) ─────────────────────────────────────────
   useEffect(() => {
     const series = seriesRef.current;
     if (!series || history.length === 0 || seededRef.current) return;
@@ -217,72 +217,63 @@ export default function LiveChart({
     series.setData(data);
 
     if (data.length > 0) {
-      lastTimeRef.current = data[data.length - 1].time;
+      lastTimeRef.current  = data[data.length - 1].time;
+      lastPriceRef.current = data[data.length - 1].value;
       chartRef.current?.timeScale().scrollToRealTime();
     }
 
-    // Cria price line se ainda não existe (priceTobeat pode chegar depois do init)
     if (!priceLineRef.current && priceTobeatRef.current > 0) {
-      priceLineRef.current = series.createPriceLine({
-        price:              priceTobeatRef.current,
-        color:              "rgba(255,255,255,0.28)",
-        lineWidth:          1,
-        lineStyle:          LineStyle.Dashed,
-        axisLabelVisible:   true,
-        title:              "Ref",
-        axisLabelColor:     "rgba(255,255,255,0.22)",
-        axisLabelTextColor: "rgba(255,255,255,0.6)",
-      });
+      priceLineRef.current = createPriceLine(series, priceTobeatRef.current);
     }
-  }, [history]);
+  }, [history]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── priceTobeat: atualiza linha de referência ────────────────────────────
+  // ── Cor dinâmica: atualiza série quando lineColor muda (verde ↔ vermelho) ─
   useEffect(() => {
     const series = seriesRef.current;
     if (!series) return;
+    const rgb = hexToRgb(lineColor);
+    series.applyOptions({
+      lineColor,
+      topColor:    `rgba(${rgb},0.22)`,
+      bottomColor: `rgba(${rgb},0)`,
+    });
+  }, [lineColor]);
 
-    if (priceTobeat > 0) {
-      if (priceLineRef.current) {
-        priceLineRef.current.applyOptions({ price: priceTobeat });
-      } else {
-        // Cria pela primeira vez se ainda não existia
-        priceLineRef.current = series.createPriceLine({
-          price:              priceTobeat,
-          color:              "rgba(255,255,255,0.28)",
-          lineWidth:          1,
-          lineStyle:          LineStyle.Dashed,
-          axisLabelVisible:   true,
-          title:              "Ref",
-          axisLabelColor:     "rgba(255,255,255,0.22)",
-          axisLabelTextColor: "rgba(255,255,255,0.6)",
-        });
-      }
+  // ── priceTobeat: atualiza linha "Alvo" ──────────────────────────────────
+  useEffect(() => {
+    const series = seriesRef.current;
+    if (!series || priceTobeat <= 0) return;
+
+    if (priceLineRef.current) {
+      priceLineRef.current.applyOptions({ price: priceTobeat });
+    } else {
+      priceLineRef.current = createPriceLine(series, priceTobeat);
     }
-  }, [priceTobeat]);
+  }, [priceTobeat]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── RAF: única fonte de updates pós-seed ─────────────────────────────────
-  // 100ms throttle = 10fps, sincronizado ao rAF do browser (sem jitter do React)
-  // Resolve o "trava→anda→trava": React render é bursty; RAF é constante
+  // ── RAF: atualiza linha a 60fps sem throttle ─────────────────────────────
+  // Chama series.update() apenas quando o preço mudou desde o último frame.
+  // Isso faz a linha mover a 60fps (igual ao dot animado pelo LWC), sem
+  // desperdiçar redraws quando o preço está estável.
   useEffect(() => {
     if (!livePriceRef) return;
     const ref = livePriceRef;
     let rafId: number;
-    let lastMs = 0;
 
-    const frame = (now: number) => {
-      if (now - lastMs >= 100 && seededRef.current) {
+    const frame = () => {
+      if (seededRef.current) {
         const series = seriesRef.current;
         const price  = ref.current;
-        if (series && price != null && price > 0) {
+        if (series && price != null && price > 0 && price !== lastPriceRef.current) {
           const t = Math.floor(Date.now() / 1000) as UTCTimestamp;
           if (t >= lastTimeRef.current) {
             try {
               series.update({ time: t, value: price });
-              lastTimeRef.current = t;
+              lastTimeRef.current  = t;
+              lastPriceRef.current = price;
             } catch { /* timestamp conflict em round transition — ignorar */ }
           }
         }
-        lastMs = now;
       }
       rafId = requestAnimationFrame(frame);
     };
