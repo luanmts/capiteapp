@@ -19,9 +19,25 @@ async function fetchBitcoinPrice(): Promise<number | null> {
   }
 }
 
+async function fetchEthPrice(): Promise<number | null> {
+  try {
+    const res = await fetch(
+      "https://api.binance.com/api/v3/ticker/price?symbol=ETHUSDT",
+      { cache: "no-store" }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const price = parseFloat(data.price);
+    return isNaN(price) ? null : price;
+  } catch {
+    return null;
+  }
+}
+
 /** Seleciona a fonte de preço correta baseada no slug do template. */
 function selectPriceFetcher(slug: string): () => Promise<number | null> {
   if (slug === "petroleo-5min") return fetchOilPrice;
+  if (slug === "eth-5min")      return fetchEthPrice;
   return fetchBitcoinPrice;
 }
 
