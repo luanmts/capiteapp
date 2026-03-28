@@ -119,10 +119,17 @@ function PriceChartInner({ history, priceTobeat, lineColor = "#f59e0b" }: PriceC
       </text>
 
       {/* Area fill */}
-      <path d={areaPath} fill="url(#pcGrad)" />
+      <path d={areaPath} fill="url(#pcGrad)" style={{ transition: "d 0.8s ease" }} />
 
-      {/* Price line */}
-      <path d={linePath} fill="none" stroke={lineColor} strokeWidth={2.5} strokeLinejoin="round" />
+      {/* Price line — CSS transition on d interpola suavemente entre updates */}
+      <path
+        d={linePath}
+        fill="none"
+        stroke={lineColor}
+        strokeWidth={2.5}
+        strokeLinejoin="round"
+        style={{ transition: "d 0.8s ease" }}
+      />
 
       {/* Current price dot + pulse ring */}
       <circle cx={lastX} cy={lastY} r={8} fill={lineColor} fillOpacity={0.15} />

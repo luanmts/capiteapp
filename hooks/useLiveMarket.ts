@@ -211,6 +211,10 @@ export function useLiveMarket(
         const finalDirection: "up" | "down" | "cancelled" =
           Math.abs(delta) < 0.01 ? "cancelled" : delta > 0 ? "up" : "down";
 
+        // Inicia transição IMEDIATAMENTE — antes de qualquer await
+        phaseRef.current = "transitioning";
+        setState((prev) => ({ ...prev, phase: "transitioning" }));
+
         // Settle do round anterior
         const token = typeof window !== "undefined"
           ? localStorage.getItem("capite_token")
@@ -238,7 +242,6 @@ export function useLiveMarket(
         const slotStart = new Date(closeMs - 5 * 60 * 1000);
         const newLabel  = `${String(slotStart.getHours()).padStart(2, "0")}:${String(slotStart.getMinutes()).padStart(2, "0")}`;
 
-        phaseRef.current = "transitioning";
         if (transitionTimer.current) clearTimeout(transitionTimer.current);
         transitionTimer.current = setTimeout(() => {
           phaseRef.current = "live";

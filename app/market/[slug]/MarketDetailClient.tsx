@@ -337,68 +337,63 @@ function LiveCryptoView({ market }: { market: Market }) {
           </motion.div>
         </motion.div>
 
-        {/* ── Transition card (premium) ── */}
-        <AnimatePresence>
-          {isTransitioning && (
-            <motion.div
-              key="transition-card"
-              initial={{ opacity: 0, scale: 0.97, y: 8 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.97, y: -6 }}
-              transition={{ duration: 0.38, ease: [0.16, 1, 0.3, 1] }}
-              className="rounded-xl border border-white/[0.07] bg-[#0b0d12] p-7"
-            >
-              <div className="flex flex-col items-center gap-5">
-
-                {/* Spinner ring */}
-                <div className="relative w-12 h-12 flex items-center justify-center">
-                  {/* Static background ring */}
-                  <svg className="absolute inset-0 w-full h-full" viewBox="0 0 48 48">
-                    <circle cx="24" cy="24" r="19" fill="none"
-                      stroke="rgba(255,255,255,0.05)" strokeWidth="2.5" />
-                  </svg>
-                  {/* Spinning arc */}
-                  <motion.svg
-                    className="absolute inset-0 w-full h-full"
-                    viewBox="0 0 48 48"
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1.6, repeat: Infinity, ease: "linear" }}
-                  >
-                    <circle cx="24" cy="24" r="19" fill="none"
-                      stroke="rgba(255,255,255,0.4)" strokeWidth="2.5"
-                      strokeLinecap="round" strokeDasharray="42 78" />
-                  </motion.svg>
-                  {/* Center dot */}
-                  <div className="w-1.5 h-1.5 rounded-full bg-white/40" />
-                </div>
-
-                {/* Text */}
-                <div className="text-center space-y-1.5">
-                  <p className="text-sm font-semibold text-white/90 tracking-tight">
-                    Iniciando próxima rodada
-                  </p>
-                  <p className="text-xs text-text-tint/55">
-                    Carregando dados do novo mercado...
-                  </p>
-                </div>
-
-                {/* Progress bar */}
-                <div className="w-full h-px bg-white/[0.07] rounded-full overflow-hidden">
-                  <motion.div
-                    className="h-full bg-white/25 rounded-full"
-                    initial={{ width: "0%" }}
-                    animate={{ width: "100%" }}
-                    transition={{ duration: 3, ease: "linear" }}
-                  />
-                </div>
-
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-
         {/* ── BLOCO 2: preços + gráfico + time slots ── */}
-        <motion.div {...blurAnim} className="bg-card border border-white/[0.06] rounded-xl overflow-hidden">
+        <motion.div {...blurAnim} className="relative bg-card border border-white/[0.06] rounded-xl overflow-hidden">
+
+          {/* ── Transition overlay — sobreposto, sem empurrar layout ── */}
+          <AnimatePresence>
+            {isTransitioning && (
+              <motion.div
+                key="transition-overlay"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.25 }}
+                className="absolute inset-0 z-10 flex items-center justify-center rounded-xl bg-[#0b0d12]/90 backdrop-blur-sm"
+              >
+                <div className="flex flex-col items-center gap-5 px-8">
+
+                  {/* Spinner ring */}
+                  <div className="relative w-12 h-12 flex items-center justify-center">
+                    <svg className="absolute inset-0 w-full h-full" viewBox="0 0 48 48">
+                      <circle cx="24" cy="24" r="19" fill="none"
+                        stroke="rgba(255,255,255,0.05)" strokeWidth="2.5" />
+                    </svg>
+                    <motion.svg
+                      className="absolute inset-0 w-full h-full"
+                      viewBox="0 0 48 48"
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1.6, repeat: Infinity, ease: "linear" }}
+                    >
+                      <circle cx="24" cy="24" r="19" fill="none"
+                        stroke="rgba(255,255,255,0.4)" strokeWidth="2.5"
+                        strokeLinecap="round" strokeDasharray="42 78" />
+                    </motion.svg>
+                    <div className="w-1.5 h-1.5 rounded-full bg-white/40" />
+                  </div>
+
+                  <div className="text-center space-y-1.5">
+                    <p className="text-sm font-semibold text-white/90 tracking-tight">
+                      Iniciando próxima rodada
+                    </p>
+                    <p className="text-xs text-text-tint/55">
+                      Carregando dados do novo mercado...
+                    </p>
+                  </div>
+
+                  <div className="w-40 h-px bg-white/[0.07] rounded-full overflow-hidden">
+                    <motion.div
+                      className="h-full bg-white/25 rounded-full"
+                      initial={{ width: "0%" }}
+                      animate={{ width: "100%" }}
+                      transition={{ duration: 2, ease: "linear" }}
+                    />
+                  </div>
+
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
           <div className="p-4">
 
             {/* Prices — re-enter on new round */}
@@ -429,29 +424,15 @@ function LiveCryptoView({ market }: { market: Market }) {
               </div>
             </motion.div>
 
-            {/* Chart: skeleton while transitioning, fresh fade-in after */}
-            <AnimatePresence mode="wait">
-              {isTransitioning ? (
-                <motion.div
-                  key="chart-skeleton"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="w-full rounded-xl bg-white/[0.04] animate-pulse"
-                  style={{ height: 120 }}
-                />
-              ) : (
-                <motion.div
-                  key={`chart-${roundKey}`}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.55, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
-                >
-                  <PriceChart history={priceHistory} priceTobeat={priceTobeat} lineColor={lineColor} />
-                </motion.div>
-              )}
-            </AnimatePresence>
+            {/* Chart */}
+            <motion.div
+              key={`chart-${roundKey}`}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+            >
+              <PriceChart history={priceHistory} priceTobeat={priceTobeat} lineColor={lineColor} />
+            </motion.div>
 
             {/* Time slots — active chip bounces + glows on new round */}
             <div className="mt-3 pt-3 border-t border-white/[0.04] flex items-center gap-2 overflow-x-auto no-scrollbar">
