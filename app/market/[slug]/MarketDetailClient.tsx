@@ -308,14 +308,14 @@ function LiveCryptoView({ market }: { market: Market }) {
               <div className="shrink-0 flex items-start gap-0.5">
                 <div className="text-center">
                   <span suppressHydrationWarning className={clsx("block text-lg lg:text-3xl font-bold tabular-nums leading-none", timerColor)}>
-                    {String(minsLeft).padStart(2, "0")}
+                    {isTransitioning ? "--" : String(minsLeft).padStart(2, "0")}
                   </span>
                   <span className="block text-[8px] text-text-tint/50 uppercase tracking-widest mt-0.5">MINS</span>
                 </div>
                 <span className={clsx("text-base lg:text-2xl font-bold leading-none mt-0.5", timerSep)}>:</span>
                 <div className="text-center">
                   <span suppressHydrationWarning className={clsx("block text-lg lg:text-3xl font-bold tabular-nums leading-none", timerColor)}>
-                    {String(secsLeft).padStart(2, "0")}
+                    {isTransitioning ? "--" : String(secsLeft).padStart(2, "0")}
                   </span>
                   <span className="block text-[8px] text-text-tint/50 uppercase tracking-widest mt-0.5">SECS</span>
                 </div>

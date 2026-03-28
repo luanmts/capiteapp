@@ -152,17 +152,17 @@ export function useLiveMarket(
     initRound();
   }, [initRound]);
 
-  // Timer independente — atualiza minsLeft/secsLeft a cada 250ms sem await
-  // Desacopla completamente o countdown das chamadas assíncronas de preço
+  // Timer independente — atualiza minsLeft/secsLeft e propaga mudanças de fase a cada 250ms
   useEffect(() => {
     const timerInterval = setInterval(() => {
       const closeMs   = currentWindowClose();
       const remaining = Math.max(0, closeMs - Date.now());
       const newMins   = Math.floor(remaining / 60000);
       const newSecs   = Math.floor((remaining % 60000) / 1000);
+      const newPhase  = phaseRef.current;
       setState((prev) => {
-        if (prev.minsLeft === newMins && prev.secsLeft === newSecs) return prev;
-        return { ...prev, minsLeft: newMins, secsLeft: newSecs };
+        if (prev.minsLeft === newMins && prev.secsLeft === newSecs && prev.phase === newPhase) return prev;
+        return { ...prev, minsLeft: newMins, secsLeft: newSecs, phase: newPhase };
       });
     }, 250);
     return () => clearInterval(timerInterval);
@@ -186,24 +186,8 @@ export function useLiveMarket(
       const closeMs = currentWindowClose();
       const now     = Date.now();
 
-      // Busca preço atual do ativo
-      const newPrice = await fetchPriceRef.current();
-      if (newPrice) priceRef.current = newPrice;
-
-      // A cada 10s, atualiza odds do round ativo
-      tickRef.current += 1;
-      if (tickRef.current % 10 === 0 && roundIdRef.current) {
-        const odds = await fetchRoundOdds(roundIdRef.current);
-        if (odds.currentYesOdd !== null || odds.currentNoOdd !== null) {
-          setState((prev) => ({
-            ...prev,
-            currentYesOdd: odds.currentYesOdd,
-            currentNoOdd:  odds.currentNoOdd,
-          }));
-        }
-      }
-
-      // Detecta virada de round
+      // 1. Detecta virada de round ANTES de qualquer fetch de rede
+      //    Garante que phase:"transitioning" propaga via timer (250ms) sem esperar Binance
       if (closeMs !== prevCloseMs.current) {
         prevCloseMs.current = closeMs;
 
@@ -211,31 +195,24 @@ export function useLiveMarket(
         const finalDirection: "up" | "down" | "cancelled" =
           Math.abs(delta) < 0.01 ? "cancelled" : delta > 0 ? "up" : "down";
 
-        // Inicia transição IMEDIATAMENTE — antes de qualquer await
+        // Fase transição IMEDIATA — o timer (250ms) já propaga para o estado
         phaseRef.current = "transitioning";
-        setState((prev) => ({ ...prev, phase: "transitioning" }));
 
-        // Settle do round anterior
+        // Settle fire & forget
         const token = typeof window !== "undefined"
-          ? localStorage.getItem("capite_token")
-          : null;
-
+          ? localStorage.getItem("capite_token") : null;
         if (token && roundIdRef.current) {
-          const outcome = finalDirection === "up"
-            ? "yes"
-            : finalDirection === "down"
-            ? "no"
-            : "cancelled";
+          const outcome = finalDirection === "up" ? "yes"
+            : finalDirection === "down" ? "no" : "cancelled";
           settleMarket(roundIdRef.current, outcome, token);
         }
 
-        // Busca novo round do banco
+        // Busca novo round (pode ter latência, mas fase já está em transitioning)
         const newRound = await fetchActiveRound(slugRef.current);
         if (newRound) {
           priceTobeatRef.current = newRound.startPrice;
           roundIdRef.current     = newRound.roundId;
         } else {
-          // Fallback: usa preço atual como novo startPrice
           priceTobeatRef.current = priceRef.current;
         }
 
@@ -255,6 +232,25 @@ export function useLiveMarket(
           setTimeout(() => setState((prev) => ({ ...prev, newSlotLabel: null })), 3_000);
           setTimeout(() => setState((prev) => ({ ...prev, resolvedDirection: null })), 1_000);
         }, TRANSITION_HOLD_MS);
+
+        return; // Pula atualização de preço neste tick — próximo tick retoma normal
+      }
+
+      // 2. Tick normal: fetch de preço
+      const newPrice = await fetchPriceRef.current();
+      if (newPrice) priceRef.current = newPrice;
+
+      // A cada 10s, atualiza odds do round ativo
+      tickRef.current += 1;
+      if (tickRef.current % 10 === 0 && roundIdRef.current) {
+        const odds = await fetchRoundOdds(roundIdRef.current);
+        if (odds.currentYesOdd !== null || odds.currentNoOdd !== null) {
+          setState((prev) => ({
+            ...prev,
+            currentYesOdd: odds.currentYesOdd,
+            currentNoOdd:  odds.currentNoOdd,
+          }));
+        }
       }
 
       setState((prev) => ({

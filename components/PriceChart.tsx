@@ -30,8 +30,15 @@ function PriceChartInner({ history, priceTobeat, lineColor = "#f59e0b" }: PriceC
 
   const prices = history.map((d) => d.price);
   const allPrices = [...prices, priceTobeat];
-  const minP = Math.min(...allPrices) - 18;
-  const maxP = Math.max(...allPrices) + 18;
+  const rawMin = Math.min(...allPrices);
+  const rawMax = Math.max(...allPrices);
+  const pureRange = rawMax - rawMin || 1;
+  const currentP = prices[prices.length - 1];
+  // Padding dinâmico: 30% do range observado, mínimo 0.04% do preço atual
+  // Evita chart "vazio" em movimentos pequenos e não infla a escala em movimentos grandes
+  const pad = Math.max(pureRange * 0.3, currentP * 0.0004);
+  const minP = rawMin - pad;
+  const maxP = rawMax + pad;
   const range = maxP - minP || 1;
 
   const toX = (i: number) => PAD.left + (i / (history.length - 1)) * chartW;
