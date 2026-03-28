@@ -129,11 +129,19 @@ export function useLiveMarket(
 
     initializedRef.current = true;
 
+    // Seed inicial: 2 pontos com o preço de abertura para o gráfico aparecer imediatamente
+    const seedPrice = priceRef.current || priceTobeatRef.current;
+    const seedNow   = Date.now();
+    const seedHistory = seedPrice > 0
+      ? [{ t: seedNow - 1000, price: seedPrice }, { t: seedNow, price: seedPrice }]
+      : [];
+
     setState((prev) => ({
       ...prev,
       priceTobeat:   priceTobeatRef.current,
       currentPrice:  priceRef.current,
       priceDelta:    priceRef.current - priceTobeatRef.current,
+      priceHistory:  seedHistory,
       roundId:       roundIdRef.current,
       currentYesOdd,
       currentNoOdd,
@@ -246,21 +254,15 @@ export function useLiveMarket(
         }, TRANSITION_HOLD_MS);
       }
 
-      setState((prev) => {
-        // Adiciona ao histórico a cada 5 ticks (~5s) — reduz recálculo do gráfico
-        const newHistory = tickRef.current % 5 === 0
-          ? [...prev.priceHistory, { t: now, price: priceRef.current }].slice(-180)
-          : prev.priceHistory;
-        return {
-          ...prev,
-          phase:        phaseRef.current,
-          priceTobeat:  priceTobeatRef.current,
-          currentPrice: priceRef.current,
-          priceDelta:   priceRef.current - priceTobeatRef.current,
-          priceHistory: newHistory,
-          roundId:      roundIdRef.current,
-        };
-      });
+      setState((prev) => ({
+        ...prev,
+        phase:        phaseRef.current,
+        priceTobeat:  priceTobeatRef.current,
+        currentPrice: priceRef.current,
+        priceDelta:   priceRef.current - priceTobeatRef.current,
+        priceHistory: [...prev.priceHistory, { t: now, price: priceRef.current }].slice(-180),
+        roundId:      roundIdRef.current,
+      }));
     }, 1000);
 
     return () => {

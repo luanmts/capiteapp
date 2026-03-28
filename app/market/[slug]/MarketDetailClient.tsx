@@ -239,11 +239,10 @@ function LiveCryptoView({ market }: { market: Market }) {
   // Blur + opacity on both content cards during transition
   const blurAnim = {
     animate: {
-      filter:  isTransitioning ? "blur(5px)"   : "blur(0px)",
-      opacity: isTransitioning ? 0.22          : 1,
-      scale:   isTransitioning ? 0.99          : 1,
+      opacity: isTransitioning ? 0.25 : 1,
+      scale:   isTransitioning ? 0.99 : 1,
     },
-    transition: { duration: 0.5, ease: "easeInOut" as const },
+    transition: { duration: 0.4, ease: "easeInOut" as const },
     style: { pointerEvents: isTransitioning ? "none" as const : "auto" as const },
   };
 
@@ -608,8 +607,8 @@ function LiveCountView({ market }: { market: Market }) {
   const predSecs = predSecsLeft % 60;
 
   const blurAnim = {
-    animate: { filter: isTransitioning ? "blur(5px)" : "blur(0px)", opacity: isTransitioning ? 0.25 : 1, scale: isTransitioning ? 0.99 : 1 },
-    transition: { duration: 0.5, ease: "easeInOut" as const },
+    animate: { opacity: isTransitioning ? 0.25 : 1, scale: isTransitioning ? 0.99 : 1 },
+    transition: { duration: 0.4, ease: "easeInOut" as const },
     style: { pointerEvents: isTransitioning ? "none" as const : "auto" as const },
   };
 
