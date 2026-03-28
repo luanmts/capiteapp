@@ -125,11 +125,10 @@ export default function LiveChart({
         scaleMargins:  { top: 0.08, bottom: 0.08 },
       },
       timeScale: {
-        borderVisible:   false,
-        timeVisible:     true,
-        secondsVisible:  true,
-        fixLeftEdge:     true,
-        fixRightEdge:    true,
+        borderVisible:      false,
+        timeVisible:        true,
+        secondsVisible:     true,
+        rightOffset:  3,  // espaço à direita do último ponto (em barras)
         tickMarkFormatter: (time: Time, type: TickMarkType) => {
           if (type === TickMarkType.Year || type === TickMarkType.Month) return null;
           const ts = typeof time === "number" ? time : 0;
@@ -219,7 +218,16 @@ export default function LiveChart({
     if (data.length > 0) {
       lastTimeRef.current  = data[data.length - 1].time;
       lastPriceRef.current = data[data.length - 1].value;
-      chartRef.current?.timeScale().scrollToRealTime();
+
+      // Janela fixa de 90s deslizando — sem fixLeftEdge/fixRightEdge.
+      // O eixo X não rescala quando novos pontos chegam: os antigos saem
+      // pela esquerda sem reflow → elimina o "pula 1 slot / segundo".
+      const ts = chartRef.current?.timeScale();
+      if (ts) {
+        const to   = (lastTimeRef.current + 5) as UTCTimestamp;
+        const from = (to - 90) as UTCTimestamp;
+        ts.setVisibleRange({ from, to });
+      }
     }
 
     if (!priceLineRef.current && priceTobeatRef.current > 0) {
@@ -269,8 +277,19 @@ export default function LiveChart({
           if (t >= lastTimeRef.current) {
             try {
               series.update({ time: t, value: price });
-              lastTimeRef.current  = t;
               lastPriceRef.current = price;
+
+              // Avança a janela visível quando um novo segundo é commitado,
+              // mantendo o eixo X fixo em 90s sem rescalar o histórico inteiro.
+              if (t > lastTimeRef.current) {
+                lastTimeRef.current = t;
+                const ts = chartRef.current?.timeScale();
+                if (ts) {
+                  const to   = (t + 5) as UTCTimestamp;
+                  const from = (to - 90) as UTCTimestamp;
+                  ts.setVisibleRange({ from, to });
+                }
+              }
             } catch { /* timestamp conflict em round transition — ignorar */ }
           }
         }
