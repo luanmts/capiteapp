@@ -78,6 +78,14 @@ export function useLiveMarket(
       fetchBinancePrice(),
     ]);
 
+    // LOG TEMPORÁRIO — remover após validar no Supabase
+    console.log("[BET FLOW] useLiveMarket.initRound", {
+      slug: SLUG,
+      round,
+      roundId: round?.roundId ?? null,
+      priceFromBinance: price,
+    });
+
     if (round) {
       priceTobeatRef.current = round.startPrice;
       roundIdRef.current     = round.roundId;

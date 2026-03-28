@@ -519,7 +519,7 @@ function LiveCryptoView({ market }: { market: Market }) {
       {/* ── RIGHT COLUMN (desktop) ── */}
       <div className="hidden lg:block lg:w-80 xl:w-96 shrink-0">
         <div className="sticky top-20">
-          <TradePanel market={market} resolvedMarketId={roundId ?? undefined} />
+          <TradePanel market={market} resolvedMarketId={roundId ?? undefined} predictionsOpen={roundId !== null} />
         </div>
       </div>
 
@@ -531,6 +531,7 @@ function LiveCryptoView({ market }: { market: Market }) {
         marketTitle={market.title}
         marketIcon={market.icon}
         marketImageUrl={market.imageUrl}
+        predictionsOpen={roundId !== null}
       />
     </div>
   );

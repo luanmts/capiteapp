@@ -104,6 +104,15 @@ export function BetsProvider({ children }: { children: ReactNode }) {
     const token = typeof window !== "undefined" ? localStorage.getItem("capite_token") : null;
     const apiUrl = process.env.NEXT_PUBLIC_API_URL;
 
+    // LOG TEMPORÁRIO — remover após validar no Supabase
+    console.log("[BET FLOW] BetsContext.placeBet", {
+      marketId:         params.marketId,
+      resolvedMarketId: params.resolvedMarketId,
+      finalMarketId:    params.resolvedMarketId ?? params.marketId,
+      amount:           params.amount,
+      hasToken:         !!token,
+    });
+
     // Se houver token e URL da API, chama o backend real
     if (token && apiUrl) {
       try {

@@ -237,6 +237,14 @@ export default function TradePanel({ market, controlledSelection, predictionsOpe
                 ? false
                 : market.selections[0]?.id === selectedId;
 
+              // LOG TEMPORÁRIO — remover após validar no Supabase
+              console.log("[BET FLOW] TradePanel.placeBet", {
+                marketId:         market.id,
+                resolvedMarketId,
+                finalMarketId:    resolvedMarketId ?? market.id,
+                amount,
+              });
+
               setBetState("loading");
               const result = await placeBet({
                 marketId: market.id,

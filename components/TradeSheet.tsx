@@ -80,6 +80,15 @@ export default function TradeSheet({
       return;
     }
 
+    // LOG TEMPORÁRIO — remover após validar no Supabase
+    console.log("[BET FLOW] TradeSheet.placeBet", {
+      marketId,
+      resolvedMarketId,
+      finalMarketId: resolvedMarketId ?? marketId,
+      amount,
+      direction,
+    });
+
     setBetState("loading");
     const result = await placeBet({
       marketId,
