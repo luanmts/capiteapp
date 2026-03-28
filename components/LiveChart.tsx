@@ -39,8 +39,15 @@ interface LiveChartProps {
 const Y_WINDOW = 300;
 
 function toChartData(pts: DataPoint[]) {
+  // Resolução de 100ms: pt.t vem em ms do useLiveMarket (intervalo 100ms).
+  // Dividir por 1000 sem arredondar dá timestamps como 1743172800.1, 1743172800.2...
+  // LWC aceita floats internamente — isso dá 10 pontos/segundo na série em vez de 1,
+  // fazendo a linha avançar horizontalmente 10x por segundo → elimina o "trava 1s".
   const map = new Map<number, number>();
-  for (const pt of pts) map.set(Math.floor(pt.t / 1000), pt.price);
+  for (const pt of pts) {
+    const t = Math.round(pt.t / 100) / 10; // arredonda ao 100ms mais próximo
+    map.set(t, pt.price);
+  }
   return Array.from(map.entries())
     .sort((a, b) => a[0] - b[0])
     .map(([time, value]) => ({ time: time as UTCTimestamp, value }));
@@ -268,31 +275,34 @@ export default function LiveChart({
     const ref = livePriceRef;
     let rafId: number;
 
-    const frame = () => {
-      if (seededRef.current) {
+    let lastFrameMs = 0;
+
+    const frame = (now: number) => {
+      if (seededRef.current && now - lastFrameMs >= 100) {
+        // Novo ponto a cada 100ms — float timestamp dá resolução 10x maior que segundos.
+        // Cada chamada adiciona um novo X na série → linha avança 10x/s, não 1x/s.
         const series = seriesRef.current;
         const price  = ref.current;
-        if (series && price != null && price > 0 && price !== lastPriceRef.current) {
-          const t = Math.floor(Date.now() / 1000) as UTCTimestamp;
+        if (series && price != null && price > 0) {
+          // t em resolução de 100ms: ex. 1743172800.1, .2, .3...
+          const t = (Math.round(Date.now() / 100) / 10) as UTCTimestamp;
           if (t >= lastTimeRef.current) {
             try {
               series.update({ time: t, value: price });
               lastPriceRef.current = price;
+              lastTimeRef.current  = t;
 
-              // Avança a janela visível quando um novo segundo é commitado,
-              // mantendo o eixo X fixo em 90s sem rescalar o histórico inteiro.
-              if (t > lastTimeRef.current) {
-                lastTimeRef.current = t;
-                const ts = chartRef.current?.timeScale();
-                if (ts) {
-                  const to   = (t + 5) as UTCTimestamp;
-                  const from = (to - 90) as UTCTimestamp;
-                  ts.setVisibleRange({ from, to });
-                }
+              // Desliza a janela visível junto com os novos pontos
+              const ts = chartRef.current?.timeScale();
+              if (ts) {
+                const to   = (t + 5) as UTCTimestamp;
+                const from = (to - 90) as UTCTimestamp;
+                ts.setVisibleRange({ from, to });
               }
             } catch { /* timestamp conflict em round transition — ignorar */ }
           }
         }
+        lastFrameMs = now;
       }
       rafId = requestAnimationFrame(frame);
     };
