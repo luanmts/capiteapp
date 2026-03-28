@@ -38,8 +38,9 @@ function resample(data: DataPoint[], n: number): DataPoint[] {
   });
 }
 
-const N_DISPLAY = 60; // pontos renderizados — fixo para morphing CSS funcionar
-const Y_WINDOW  = 60; // últimos N pontos usados para cálculo do range Y (zoom local)
+const N_DISPLAY = 60;  // pontos renderizados — fixo para morphing CSS funcionar
+const Y_WINDOW  = 120; // últimos N pontos usados para cálculo do range Y
+                       // com polling 500ms: 120 pts = 60s de janela real
 
 function PriceChartInner({ history, priceTobeat, lineColor = "#f59e0b", usdRate = 1 }: PriceChartProps) {
   if (history.length < 2) {

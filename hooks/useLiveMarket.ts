@@ -236,11 +236,11 @@ export function useLiveMarket(
         return; // Pula atualização de preço neste tick — próximo tick retoma normal
       }
 
-      // 2. Tick normal: fetch de preço
+      // 2. Tick normal: fetch de preço (a cada 500ms → 2x mais resolução no gráfico)
       const newPrice = await fetchPriceRef.current();
       if (newPrice) priceRef.current = newPrice;
 
-      // A cada 10s, atualiza odds do round ativo
+      // A cada 10 ticks (~5s), atualiza odds do round ativo
       tickRef.current += 1;
       if (tickRef.current % 10 === 0 && roundIdRef.current) {
         const odds = await fetchRoundOdds(roundIdRef.current);
@@ -259,10 +259,10 @@ export function useLiveMarket(
         priceTobeat:  priceTobeatRef.current,
         currentPrice: priceRef.current,
         priceDelta:   priceRef.current - priceTobeatRef.current,
-        priceHistory: [...prev.priceHistory, { t: now, price: priceRef.current }].slice(-180),
+        priceHistory: [...prev.priceHistory, { t: now, price: priceRef.current }].slice(-300),
         roundId:      roundIdRef.current,
       }));
-    }, 1000);
+    }, 500);
 
     return () => {
       clearInterval(interval);
