@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import dynamic from "next/dynamic";
 import { useState, useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { ArrowLeft, Info, X } from "lucide-react";
@@ -9,7 +10,15 @@ import clsx from "clsx";
 import { Market, GroupedMarket, Selection } from "@/types";
 import { getCategoryColor, formatVolume, formatPercent, formatOdd } from "@/utils/formatters";
 import LiveBadge from "@/components/LiveBadge";
-import PriceChart from "@/components/PriceChart";
+
+const LiveChart = dynamic(() => import("@/components/LiveChart"), {
+  ssr: false,
+  loading: () => (
+    <div className="h-44 flex items-center justify-center text-white/30 text-sm font-mono">
+      Carregando gráfico...
+    </div>
+  ),
+});
 import PercentChart from "@/components/PercentChart";
 import TradePanel from "@/components/TradePanel";
 import TradeSheet from "@/components/TradeSheet";
@@ -456,7 +465,7 @@ function LiveCryptoView({ market }: { market: Market }) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
             >
-              <PriceChart history={priceHistory} priceTobeat={priceTobeat} lineColor={lineColor} usdRate={usdBrlRate} livePriceRef={priceRef} />
+              <LiveChart history={priceHistory} priceTobeat={priceTobeat} lineColor={lineColor} usdRate={usdBrlRate} livePriceRef={priceRef} />
             </motion.div>
 
             {/* Time slots — active chip bounces + glows on new round */}
