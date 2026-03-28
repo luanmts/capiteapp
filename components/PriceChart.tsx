@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { useRef, useEffect } from "react";
 
 interface DataPoint {
   t: number;
@@ -12,6 +12,8 @@ interface PriceChartProps {
   priceTobeat: number;
   lineColor?: string;
   usdRate?: number; // BRL/USD para display. 1 = exibe em USD
+  /** Ref ao preço live do WS — permite animação RAF a 60fps sem re-render React */
+  livePriceRef?: React.RefObject<number>;
 }
 
 /** Formata um valor USD para exibição no eixo Y (labels laterais — pode abreviar). */
@@ -39,10 +41,55 @@ function resample(data: DataPoint[], n: number): DataPoint[] {
 }
 
 const N_DISPLAY = 60;  // pontos renderizados — fixo para morphing CSS funcionar
-const Y_WINDOW  = 120; // últimos N pontos usados para cálculo do range Y
-                       // com polling 500ms: 120 pts = 60s de janela real
+const Y_WINDOW  = 300; // últimos N pontos usados para cálculo do range Y
+                       // com polling 100ms: 300 pts = 30s de janela real
 
-function PriceChartInner({ history, priceTobeat, lineColor = "#f59e0b", usdRate = 1 }: PriceChartProps) {
+function PriceChartInner({ history, priceTobeat, lineColor = "#f59e0b", usdRate = 1, livePriceRef }: PriceChartProps) {
+  // Refs para animação RAF do dot (todos declarados antes de qualquer early return)
+  const dotInnerRef     = useRef<SVGCircleElement>(null);
+  const dotOuterRef     = useRef<SVGCircleElement>(null);
+  // Escala Y atual — atualizada a cada render, lida pelo RAF loop
+  const scaleRef        = useRef({ minP: 0, range: 1, chartH: 180, padTop: 12, lastX: 920 });
+  // Preço interpolado que o dot exibe — inicia null até o primeiro render com dados
+  const displayedPriceRef = useRef<number | null>(null);
+
+  // RAF loop: lê livePriceRef diretamente, interpola e move o dot a 60fps
+  useEffect(() => {
+    if (!livePriceRef) return;
+    const ref = livePriceRef; // captura para narrowing dentro do closure
+    let rafId: number;
+
+    function frame() {
+      const target = ref.current;
+      if (target != null && target > 0) {
+        // Inicializa displayedPriceRef na primeira vez que temos um target válido
+        if (displayedPriceRef.current === null) displayedPriceRef.current = target;
+
+        // Lerp 18% por frame (~60fps) → converge ~200ms
+        const prev = displayedPriceRef.current;
+        const next = prev + (target - prev) * 0.18;
+        displayedPriceRef.current = next;
+
+        const { minP, range, chartH, padTop, lastX } = scaleRef.current;
+        const cy = padTop + (1 - (next - minP) / range) * chartH;
+        const cyStr = cy.toFixed(1);
+        const cxStr = lastX.toFixed(1);
+
+        dotInnerRef.current?.setAttribute("cy", cyStr);
+        dotInnerRef.current?.setAttribute("cx", cxStr);
+        dotOuterRef.current?.setAttribute("cy", cyStr);
+        dotOuterRef.current?.setAttribute("cx", cxStr);
+      }
+      rafId = requestAnimationFrame(frame);
+    }
+
+    rafId = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(rafId);
+  // livePriceRef é uma ref estável — só recria o loop se a prop mudar
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [livePriceRef]);
+
+  // ── Early return após todos os hooks ─────────────────────────────────────────
   if (history.length < 2) {
     return (
       <div className="h-44 flex items-center justify-center text-text-tint text-sm">
@@ -58,23 +105,20 @@ function PriceChartInner({ history, priceTobeat, lineColor = "#f59e0b", usdRate 
   const chartH = H - PAD.top - PAD.bottom;
 
   // ── Y Range: sliding window dos últimos Y_WINDOW pontos + priceTobeat ──────
-  // Usar apenas dados recentes mantém o gráfico "zoomado" no movimento atual.
-  // Se usarmos toda a história, um spike no minuto 1 inflate o range por todo o round.
-  const rawPrices      = history.map((d) => d.price);
-  const windowPrices   = rawPrices.slice(-Y_WINDOW);
-  const currentP       = rawPrices[rawPrices.length - 1];
+  const rawPrices       = history.map((d) => d.price);
+  const windowPrices    = rawPrices.slice(-Y_WINDOW);
+  const currentP        = rawPrices[rawPrices.length - 1];
   const allWindowPrices = [...windowPrices, priceTobeat];
   const rawMin  = Math.min(...allWindowPrices);
   const rawMax  = Math.max(...allWindowPrices);
   const winRange = rawMax - rawMin || 1;
-  // Padding mínimo: 15% do range local ou 0.002% do preço — mais apertado que antes
   const pad  = Math.max(winRange * 0.15, currentP * 0.00002);
   const minP = rawMin - pad;
   const maxP = rawMax + pad;
   const range = maxP - minP || 1;
 
   // ── Linha e área: resample fixo para CSS d-transition funcionar ─────────────
-  const display  = resample(history, N_DISPLAY);
+  const display = resample(history, N_DISPLAY);
   const toX = (i: number) => PAD.left + (i / (display.length - 1)) * chartW;
   const toY = (p: number) => PAD.top + (1 - (p - minP) / range) * chartH;
 
@@ -110,6 +154,9 @@ function PriceChartInner({ history, priceTobeat, lineColor = "#f59e0b", usdRate 
   const lastY   = toY(display[display.length - 1].price);
   const isAbove = currentP >= priceTobeat;
 
+  // Atualiza escala para o RAF loop usar nas próximas frames
+  scaleRef.current = { minP, range, chartH, padTop: PAD.top, lastX };
+
   return (
     <svg
       viewBox={`0 0 ${W} ${H}`}
@@ -143,17 +190,17 @@ function PriceChartInner({ history, priceTobeat, lineColor = "#f59e0b", usdRate 
       )}
 
       {/* Area fill */}
-      <path d={areaPath} fill="url(#pcGrad)" style={{ transition: "d 0.6s ease" }} />
+      <path d={areaPath} fill="url(#pcGrad)" style={{ transition: "d 0.12s linear" }} />
 
       {/* Price line */}
       <path d={linePath} fill="none" stroke={lineColor} strokeWidth={2.5}
-        strokeLinejoin="round" style={{ transition: "d 0.6s ease" }} />
+        strokeLinejoin="round" style={{ transition: "d 0.12s linear" }} />
 
-      {/* Current price dot */}
-      <circle cx={lastX} cy={lastY} r={8} fill={lineColor} fillOpacity={0.15} />
-      <circle cx={lastX} cy={lastY} r={4} fill={lineColor} />
+      {/* Current price dot — cx/cy controlados pelo RAF loop via refs */}
+      <circle ref={dotOuterRef} cx={lastX} cy={lastY} r={8} fill={lineColor} fillOpacity={0.15} />
+      <circle ref={dotInnerRef} cx={lastX} cy={lastY} r={4} fill={lineColor} />
 
-      {/* Direction indicator */}
+      {/* Direction indicator — atualizado pelo React (10fps é suficiente para texto) */}
       <text x={lastX + 10} y={lastY + 4}
         fill={isAbove ? "#4ade80" : "#f87171"} fontSize={11}
         fontWeight="bold" fontFamily="monospace">

@@ -194,7 +194,7 @@ function LiveCryptoView({ market }: { market: Market }) {
   const {
     phase, minsLeft, secsLeft, priceTobeat, currentPrice, priceDelta,
     priceHistory, newSlotLabel, roundKey, resolvedDirection, roundId,
-    currentYesOdd, currentNoOdd, refreshOdds,
+    currentYesOdd, currentNoOdd, refreshOdds, priceRef,
   } = useLiveMarket(market.closesAt, market.live === 1, market.slug);
 
   const { resolveBetsForMarket, cancelBetsForMarket } = useBets();
@@ -456,7 +456,7 @@ function LiveCryptoView({ market }: { market: Market }) {
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
             >
-              <PriceChart history={priceHistory} priceTobeat={priceTobeat} lineColor={lineColor} usdRate={usdBrlRate} />
+              <PriceChart history={priceHistory} priceTobeat={priceTobeat} lineColor={lineColor} usdRate={usdBrlRate} livePriceRef={priceRef} />
             </motion.div>
 
             {/* Time slots — active chip bounces + glows on new round */}

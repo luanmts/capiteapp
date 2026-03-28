@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { settleMarket } from "@/lib/settlementApi";
 import { fetchActiveRound, fetchRoundOdds, fetchOilPrice } from "@/lib/marketsApi";
 
@@ -84,7 +84,7 @@ export function useLiveMarket(
   _closesAt: string,
   _isLive: boolean,
   templateSlug: string = "bitcoin-70k-5min",
-): LiveMarketState & { refreshOdds: () => Promise<void> } {
+): LiveMarketState & { refreshOdds: () => Promise<void>; priceRef: React.MutableRefObject<number> } {
   const priceRef        = useRef<number>(0);
   const priceTobeatRef  = useRef<number>(0);
   const roundIdRef      = useRef<string | null>(null);
@@ -311,9 +311,9 @@ export function useLiveMarket(
         if (newPrice) priceRef.current = newPrice;
       }
 
-      // A cada 10 ticks (~5s), atualiza odds do round ativo
+      // A cada 50 ticks (~5s @ 100ms), atualiza odds do round ativo
       tickRef.current += 1;
-      if (tickRef.current % 10 === 0 && roundIdRef.current) {
+      if (tickRef.current % 50 === 0 && roundIdRef.current) {
         const odds = await fetchRoundOdds(roundIdRef.current);
         if (odds.currentYesOdd !== null || odds.currentNoOdd !== null) {
           setState((prev) => ({
@@ -330,10 +330,10 @@ export function useLiveMarket(
         priceTobeat:  priceTobeatRef.current,
         currentPrice: priceRef.current,
         priceDelta:   priceRef.current - priceTobeatRef.current,
-        priceHistory: [...prev.priceHistory, { t: now, price: priceRef.current }].slice(-300),
+        priceHistory: [...prev.priceHistory, { t: now, price: priceRef.current }].slice(-600),
         roundId:      roundIdRef.current,
       }));
-    }, 500);
+    }, 100);
 
     return () => {
       clearInterval(interval);
@@ -356,5 +356,5 @@ export function useLiveMarket(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.roundId]);
 
-  return { ...state, refreshOdds };
+  return { ...state, refreshOdds, priceRef };
 }
