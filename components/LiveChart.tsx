@@ -39,13 +39,11 @@ interface LiveChartProps {
 const Y_WINDOW = 300;
 
 function toChartData(pts: DataPoint[]) {
-  // Resolução de 100ms: pt.t vem em ms do useLiveMarket (intervalo 100ms).
-  // Dividir por 1000 sem arredondar dá timestamps como 1743172800.1, 1743172800.2...
-  // LWC aceita floats internamente — isso dá 10 pontos/segundo na série em vez de 1,
-  // fazendo a linha avançar horizontalmente 10x por segundo → elimina o "trava 1s".
+  // Resolução de 50ms: timestamps como 1743172800.05, 1743172800.10...
+  // LWC aceita floats internamente — dá 20 pontos/segundo → linha avança 20x/s.
   const map = new Map<number, number>();
   for (const pt of pts) {
-    const t = Math.round(pt.t / 100) / 10; // arredonda ao 100ms mais próximo
+    const t = Math.round(pt.t / 50) / 20; // arredonda ao 50ms mais próximo — 20pts/s
     map.set(t, pt.price);
   }
   return Array.from(map.entries())
@@ -280,16 +278,16 @@ export default function LiveChart({
         const series = seriesRef.current;
         const price  = ref.current;
         if (series && price != null && price > 0) {
-          // t em resolução de 100ms — novo X a cada 100ms.
-          // Entre dois timestamps iguais, update() substitui o Y do último ponto:
-          // o segmento final da linha move verticalmente a 60fps (sem throttle).
-          const t = (Math.round(Date.now() / 100) / 10) as UTCTimestamp;
+          // t em resolução de 50ms — novo X a cada 50ms (20fps horizontal).
+          // Entre dois timestamps iguais, update() substitui Y do último ponto:
+          // segmento final move verticalmente a 60fps (sem throttle).
+          const t = (Math.round(Date.now() / 50) / 20) as UTCTimestamp;
           if (t >= lastTimeRef.current) {
             try {
               series.update({ time: t, value: price });
               lastPriceRef.current = price;
 
-              // Desliza a janela só quando entra um novo 100ms bucket (evita setVisibleRange a 60fps)
+              // Desliza janela só quando entra novo bucket 50ms (evita setVisibleRange a 60fps)
               if (t > lastTimeRef.current) {
                 lastTimeRef.current = t;
                 const ts = chartRef.current?.timeScale();

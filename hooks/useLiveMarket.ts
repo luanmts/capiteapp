@@ -34,21 +34,37 @@ async function fetchEthPrice(): Promise<number | null> {
   }
 }
 
+async function fetchSolPrice(): Promise<number | null> {
+  try {
+    const res = await fetch(
+      "https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT",
+      { cache: "no-store" }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    const price = parseFloat(data.price);
+    return isNaN(price) ? null : price;
+  } catch {
+    return null;
+  }
+}
+
 /** Seleciona a fonte de preço REST (fallback / ativos sem WS). */
 function selectPriceFetcher(slug: string): () => Promise<number | null> {
   if (slug === "petroleo-5min") return fetchOilPrice;
   if (slug === "eth-5min")      return fetchEthPrice;
+  if (slug === "sol-5min")      return fetchSolPrice;
   return fetchBitcoinPrice;
 }
 
 /**
  * Retorna o stream aggTrade da Binance para o slug.
  * Retorna null para ativos sem suporte WS (ex: petróleo).
- * Adicionar SOL: "sol-5min" → "solusdt@aggTrade"
  */
 function selectWsStream(slug: string): string | null {
   const BASE = "wss://stream.binance.com:9443/ws";
   if (slug === "eth-5min") return `${BASE}/ethusdt@aggTrade`;
+  if (slug === "sol-5min") return `${BASE}/solusdt@aggTrade`;
   if (slug === "petroleo-5min") return null;
   return `${BASE}/btcusdt@aggTrade`; // BTC é o default
 }
