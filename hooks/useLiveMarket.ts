@@ -34,11 +34,23 @@ async function fetchEthPrice(): Promise<number | null> {
   }
 }
 
-/** Seleciona a fonte de preço correta baseada no slug do template. */
+/** Seleciona a fonte de preço REST (fallback / ativos sem WS). */
 function selectPriceFetcher(slug: string): () => Promise<number | null> {
   if (slug === "petroleo-5min") return fetchOilPrice;
   if (slug === "eth-5min")      return fetchEthPrice;
   return fetchBitcoinPrice;
+}
+
+/**
+ * Retorna o stream aggTrade da Binance para o slug.
+ * Retorna null para ativos sem suporte WS (ex: petróleo).
+ * Adicionar SOL: "sol-5min" → "solusdt@aggTrade"
+ */
+function selectWsStream(slug: string): string | null {
+  const BASE = "wss://stream.binance.com:9443/ws";
+  if (slug === "eth-5min") return `${BASE}/ethusdt@aggTrade`;
+  if (slug === "petroleo-5min") return null;
+  return `${BASE}/btcusdt@aggTrade`; // BTC é o default
 }
 
 export type MarketPhase = "pre" | "live" | "transitioning" | "closed";
@@ -82,8 +94,10 @@ export function useLiveMarket(
   const initializedRef  = useRef(false);
   const tickRef         = useRef(0);
   const slugRef         = useRef(templateSlug);
-  // Fonte de preço determinada internamente pelo slug — nunca herdada do exterior
+  // Fonte de preço REST — usada apenas como fallback quando WS não está ativo
   const fetchPriceRef   = useRef(selectPriceFetcher(templateSlug));
+  // true enquanto o WebSocket estiver conectado e entregando preços
+  const wsActiveRef     = useRef(false);
 
   const [state, setState] = useState<LiveMarketState>({
     phase: "live",
@@ -151,6 +165,59 @@ export function useLiveMarket(
   useEffect(() => {
     initRound();
   }, [initRound]);
+
+  // WebSocket Binance aggTrade — atualiza priceRef em tempo real
+  // Fallback automático para REST polling se WS não estiver disponível
+  useEffect(() => {
+    const streamUrl = selectWsStream(slugRef.current);
+    if (!streamUrl) return; // petróleo não tem WS — REST polling permanece
+
+    const url = streamUrl; // narrowed to string (não null)
+    let ws: WebSocket | null = null;
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    let destroyed = false;
+
+    function connect() {
+      if (destroyed) return;
+      ws = new WebSocket(url);
+
+      ws.onmessage = (evt) => {
+        try {
+          const msg = JSON.parse(evt.data as string);
+          // aggTrade: campo "p" = price do trade executado
+          const price = parseFloat(msg.p);
+          if (!isNaN(price) && price > 0) {
+            priceRef.current  = price;
+            wsActiveRef.current = true;
+          }
+        } catch { /* ignora frames malformados */ }
+      };
+
+      ws.onopen = () => { wsActiveRef.current = true; };
+
+      ws.onclose = () => {
+        wsActiveRef.current = false;
+        if (!destroyed) {
+          // Reconecta após 3s — mantém REST como fallback no intervalo enquanto isso
+          reconnectTimer = setTimeout(connect, 3_000);
+        }
+      };
+
+      ws.onerror = () => {
+        wsActiveRef.current = false;
+        ws?.close(); // dispara onclose → reconnect
+      };
+    }
+
+    connect();
+
+    return () => {
+      destroyed = true;
+      wsActiveRef.current = false;
+      if (reconnectTimer) clearTimeout(reconnectTimer);
+      ws?.close();
+    };
+  }, []); // slug não muda durante o ciclo de vida do componente
 
   // Timer independente — atualiza minsLeft/secsLeft e propaga mudanças de fase a cada 250ms
   useEffect(() => {
@@ -236,9 +303,13 @@ export function useLiveMarket(
         return; // Pula atualização de preço neste tick — próximo tick retoma normal
       }
 
-      // 2. Tick normal: fetch de preço (a cada 500ms → 2x mais resolução no gráfico)
-      const newPrice = await fetchPriceRef.current();
-      if (newPrice) priceRef.current = newPrice;
+      // 2. Tick normal: atualiza preço
+      // Se WS está ativo, priceRef já foi atualizado em tempo real pelo onmessage.
+      // Só faz fetch REST como fallback (ex: petróleo ou WS caído temporariamente).
+      if (!wsActiveRef.current) {
+        const newPrice = await fetchPriceRef.current();
+        if (newPrice) priceRef.current = newPrice;
+      }
 
       // A cada 10 ticks (~5s), atualiza odds do round ativo
       tickRef.current += 1;
