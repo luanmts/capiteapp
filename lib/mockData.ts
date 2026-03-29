@@ -89,6 +89,25 @@ export const markets: (Market | GroupedMarket)[] = [ // eslint-disable-line pref
       { id: "s6", label: "Até 145",     odd: 2.80, percent: 47, code: "ATE",  color: "#e23838" },
     ],
   },
+  {
+    id: "sol-5min",
+    title: "Solana: Sobe ou Desce? (em 5 minutos)",
+    slug: "sol-5min",
+    description:
+      "O preço da Solana (SOL/USD) vai subir ou descer nos próximos 5 minutos? Mercado recorrente 24/7.",
+    icon: "₿",
+    imageUrl: "/images/solana.png",
+    category: "Criptomoedas",
+    closesAt: addMinutes(4),
+    live: 1,
+    volume: 24500,
+    matchingSystem: "binary",
+    displayType: "crypto-live",
+    selections: [
+      { id: "sol-up", label: "Sobe", odd: 1.95, percent: 51, code: "UP", color: "#02BC17" },
+      { id: "sol-down", label: "Desce", odd: 1.88, percent: 49, code: "DOWN", color: "#e23838" },
+    ],
+  },
 
 
   // Climate markets
