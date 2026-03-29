@@ -3,9 +3,9 @@ import { Market } from "@/types";
 interface ApiSelection {
   id: string;
   label: string;
-  odd: number;
-  odd_nao?: number;
-  percent: number;
+  odd?: number | null;
+  odd_nao?: number | null;
+  percent?: number | null;
   code?: string;
   color?: string;
 }
@@ -29,7 +29,61 @@ interface ApiMarket {
   selections: ApiSelection[];
 }
 
+function safeNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const parsed = parseFloat(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
 function mapApiMarket(m: ApiMarket): Market {
+  const defaultYesOdd = safeNumber(m.current_yes_odd) ?? 1.0;
+  const defaultNoOdd = safeNumber(m.current_no_odd) ?? 1.0;
+
+  const mappedSelections = (Array.isArray(m.selections) ? m.selections : []).map((s, i) => {
+    const apiOdd = safeNumber(s.odd);
+    const yesOdd = safeNumber(m.current_yes_odd);
+    const noOdd = safeNumber(m.current_no_odd);
+
+    const fallbackOdd =
+      i === 0 ? (yesOdd ?? apiOdd ?? defaultYesOdd)
+      : i === 1 ? (noOdd ?? apiOdd ?? defaultNoOdd)
+      : (apiOdd ?? 1.0);
+
+    return {
+      id:      s.id,
+      label:   s.label,
+      odd:     fallbackOdd,
+      oddNao:  safeNumber(s.odd_nao) ?? undefined,
+      percent: safeNumber(s.percent) ?? 0,
+      code:    s.code,
+      color:   s.color,
+    };
+  });
+
+  // Garante 2 seleções mínimas para crypto-live mesmo com payload parcial da API
+  if (m.display_type === "crypto-live" && mappedSelections.length < 2) {
+    const yesSel = mappedSelections[0] ?? {
+      id: `${m.id}-yes`,
+      label: "Sobe",
+      odd: defaultYesOdd,
+      percent: 50,
+      code: "UP",
+      color: "#02BC17",
+    };
+    const noSel = mappedSelections[1] ?? {
+      id: `${m.id}-no`,
+      label: "Desce",
+      odd: defaultNoOdd,
+      percent: 50,
+      code: "DOWN",
+      color: "#e23838",
+    };
+    mappedSelections.splice(0, mappedSelections.length, yesSel, noSel);
+  }
+
   return {
     id:            m.id,
     title:         m.title,
@@ -43,17 +97,7 @@ function mapApiMarket(m: ApiMarket): Market {
     volume:        m.volume,
     matchingSystem: m.matching_system,
     displayType:   m.display_type as Market["displayType"],
-    selections:    m.selections.map((s, i) => ({
-      id:      s.id,
-      label:   s.label,
-      odd:     i === 0 && m.current_yes_odd != null ? m.current_yes_odd
-             : i === 1 && m.current_no_odd  != null ? m.current_no_odd
-             : s.odd,
-      oddNao:  s.odd_nao,
-      percent: s.percent,
-      code:    s.code,
-      color:   s.color,
-    })),
+    selections:    mappedSelections,
   };
 }
 
