@@ -63,8 +63,8 @@ function mapApiMarket(m: ApiMarket): Market {
     };
   });
 
-  // Garante 2 seleções mínimas para crypto-live mesmo com payload parcial da API
-  if (m.display_type === "crypto-live" && mappedSelections.length < 2) {
+  // Garante 2 seleções mínimas para crypto-live e live-count mesmo com payload parcial da API
+  if ((m.display_type === "crypto-live" || m.display_type === "live-count") && mappedSelections.length < 2) {
     const yesSel = mappedSelections[0] ?? {
       id: `${m.id}-yes`,
       label: "Sobe",
