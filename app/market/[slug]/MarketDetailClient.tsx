@@ -157,7 +157,7 @@ function StickyActionBar({
             className="flex-1 py-3 rounded-xl text-sm font-bold bg-green-500 hover:bg-green-400 active:scale-[0.98] text-white flex items-center justify-center gap-1.5 transition-all"
           >
             <span>{upIcon}</span>
-            <span>{upLabel} ({upSel ? formatOdd(upSel.odd) : "–"})</span>
+            <span>{upLabel} ({typeof upSel?.odd === "number" ? formatOdd(upSel.odd) : "–"})</span>
           </button>
           <button
             onClick={() => { if (!user) { setAuthOpen(true); return; } if (predictionsOpen) setTradeDirection("down"); }}
@@ -165,7 +165,7 @@ function StickyActionBar({
             className="flex-1 py-3 rounded-xl text-sm font-bold bg-red-500 hover:bg-red-400 active:scale-[0.98] text-white flex items-center justify-center gap-1.5 transition-all"
           >
             <span>{downIcon}</span>
-            <span>{downLabel} ({downSel ? formatOdd(downSel.odd) : "–"})</span>
+            <span>{downLabel} ({typeof downSel?.odd === "number" ? formatOdd(downSel.odd) : "–"})</span>
           </button>
         </div>
 
@@ -200,6 +200,20 @@ function StickyActionBar({
 
 // ── Live Crypto Layout ─────────────────────────────────────────────────────────
 function LiveCryptoView({ market }: { market: Market }) {
+  const hasValidSelections =
+    Array.isArray(market.selections) &&
+    market.selections.length >= 2 &&
+    typeof market.selections[0]?.odd === "number" &&
+    typeof market.selections[1]?.odd === "number";
+
+  if (!hasValidSelections) {
+    return (
+      <div className="bg-card border border-red-500/30 rounded-xl p-4 text-red-300">
+        {`Mercado inválido: seleções ou odds ausentes para ${market.slug}`}
+      </div>
+    );
+  }
+
   const {
     phase, minsLeft, secsLeft, priceTobeat, currentPrice, priceDelta,
     priceHistory, newSlotLabel, roundKey, resolvedDirection, roundId,

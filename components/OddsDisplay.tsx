@@ -47,7 +47,7 @@ export default function OddsDisplay({
       <div className="flex items-center gap-2 shrink-0 ml-2">
         {showOdd && (
           <span className="text-xs text-text-tint font-medium">
-            {formatOdd(selection.odd)}
+            {typeof selection.odd === "number" ? formatOdd(selection.odd) : "–"}
           </span>
         )}
         <span

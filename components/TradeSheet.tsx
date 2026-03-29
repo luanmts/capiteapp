@@ -47,7 +47,8 @@ export default function TradeSheet({
 
   const selection = direction === "up" ? upSel : downSel;
   const isUp = direction === "up";
-  const toWin = selection ? +(amount * selection.odd).toFixed(2) : 0;
+  const hasValidOdd = typeof selection?.odd === "number";
+  const toWin = hasValidOdd ? +(amount * selection.odd).toFixed(2) : 0;
 
   useEffect(() => {
     if (isOpen) {
@@ -93,7 +94,7 @@ export default function TradeSheet({
       selectionLabel: selection.label,
       isFirstSelection: direction === "up",
       amount,
-      odd: selection.odd,
+      odd: hasValidOdd ? selection.odd : 1,
     });
 
     if (result === "ok") {
@@ -217,7 +218,7 @@ export default function TradeSheet({
           <div className="bg-white/[0.03] rounded-xl px-4 py-3 border border-white/[0.06] space-y-1.5">
             <div className="flex items-center justify-between">
               <span className="text-sm text-text-tint">Retorno</span>
-              <span className="text-sm font-bold text-white">{selection ? `${selection.odd.toFixed(2)}x` : "–"}</span>
+              <span className="text-sm font-bold text-white">{hasValidOdd ? `${selection.odd.toFixed(2)}x` : "–"}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-sm text-text-tint">Caso Acerte</span>

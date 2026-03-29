@@ -15,6 +15,10 @@ export default async function MarketPage({ params }: PageProps) {
   const markets = await getAllMarkets();
   const market = markets.find((m) => m.slug === params.slug);
 
+  if (params.slug === "sol-5min") {
+    console.log("SOL MARKET DEBUG:", JSON.stringify(market, null, 2));
+  }
+
   if (!market) {
     notFound();
   }
