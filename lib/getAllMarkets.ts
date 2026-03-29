@@ -4,7 +4,8 @@ import { fetchMarkets } from "@/lib/marketsApi";
 
 function isDynamic(m: Market | GroupedMarket): boolean {
   return (
-    m.live === 1 ||
+    // Rodovia não é mais considerada dinâmica do mock, vem apenas da API
+    (m.live === 1 && m.slug !== "rodovia-castelo-branco-5min") ||
     m.id.startsWith("carlinhos-") ||
     m.id.startsWith("virginia-") ||
     m.id.startsWith("rio-clima-")
