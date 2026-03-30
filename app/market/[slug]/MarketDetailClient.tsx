@@ -32,6 +32,7 @@ import HlsPlayer from "@/components/HlsPlayer";
 import { useAuth } from "@/contexts/AuthContext";
 import AuthModal from "@/components/AuthModal";
 import { useBets } from "@/contexts/BetsContext";
+import { fetchActiveRodoviaRound, ActiveRodoviaRound } from "@/lib/marketsApi";
 
 interface Props {
   market: Market | GroupedMarket;
@@ -594,43 +595,76 @@ function LiveCountView({ market }: { market: Market }) {
   const [slots, setSlots] = useState(() => buildSlots());
   useEffect(() => { setSlots(buildSlots()); }, [minsLeft]);
 
-  // Mock car count — updates every 8s to simulate YOLO counting
-  const [carCount, setCarCount] = useState(27);
-  const carCountRef = useRef(27);
+  // Estado para o round ativo da Rodovia
+  const [rodoviaRound, setRodoviaRound] = useState<ActiveRodoviaRound | null>(null);
+  const [carCount, setCarCount] = useState(0);
+  const carCountRef = useRef(0);
+  const [threshold, setThreshold] = useState(145);
+  const [predOpen, setPredOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState(false);
+
+  // Polling para buscar o round ativo da Rodovia
   useEffect(() => {
-    const id = setInterval(() => {
-      setCarCount((n) => {
-        const next = n + Math.floor(Math.random() * 3);
-        carCountRef.current = next;
-        return next;
-      });
-    }, 8000);
-    return () => clearInterval(id);
+    let isMounted = true;
+    let intervalId: NodeJS.Timeout;
+
+    async function fetchRodoviaData() {
+      try {
+        const data = await fetchActiveRodoviaRound();
+        if (!isMounted) return;
+        
+        if (data) {
+          setRodoviaRound(data);
+          setCarCount(data.currentCount);
+          carCountRef.current = data.currentCount;
+          setThreshold(data.threshold);
+          setPredOpen(data.predictionsOpen);
+          setError(false);
+        } else {
+          setError(true);
+        }
+      } catch (err) {
+        if (isMounted) setError(true);
+      } finally {
+        if (isMounted) setIsLoading(false);
+      }
+    }
+
+    // Busca inicial
+    fetchRodoviaData();
+
+    // Polling a cada 5 segundos
+    intervalId = setInterval(fetchRodoviaData, 5000);
+
+    return () => {
+      isMounted = false;
+      clearInterval(intervalId);
+    };
   }, []);
 
-  // Resolve bets when the round ends — upSel (selections[0]) = "Mais de 145"
+  // Resolve bets when the round ends — upSel (selections[0]) = "Mais de X"
   useEffect(() => {
     if (resolvedDirection && roundKey !== lastResolvedRoundRef.current) {
       lastResolvedRoundRef.current = roundKey;
       if (resolvedDirection === "cancelled") {
         cancelBetsForMarket(market.id);
       } else {
-        const THRESHOLD = 145;
-        resolveBetsForMarket(market.id, carCountRef.current > THRESHOLD);
+        // Usa o threshold real do backend
+        resolveBetsForMarket(market.id, carCountRef.current > threshold);
       }
     }
-  }, [resolvedDirection, roundKey, market.id, resolveBetsForMarket, cancelBetsForMarket]);
+  }, [resolvedDirection, roundKey, market.id, resolveBetsForMarket, cancelBetsForMarket, threshold]);
 
-  const upSel  = market.selections[0];
+  const upSel = market.selections[0];
   const downSel = market.selections[1];
-  const timerColor    = phase === "live" ? "text-red-500" : "text-text-tint";
-  const timerSep      = phase === "live" ? "text-red-500/50" : "text-text-tint/30";
+  const timerColor = phase === "live" ? "text-red-500" : "text-text-tint";
+  const timerSep = phase === "live" ? "text-red-500/50" : "text-text-tint/30";
   const isTransitioning = phase === "transitioning";
 
-  // Prediction window: first 2:30 of a 5-min round
+  // Calcula o tempo restante para encerrar as previsões
   const totalSecs = minsLeft * 60 + secsLeft;
   const PRED_CLOSE_SECS = 150; // 2m30s remaining = predictions close
-  const predOpen = totalSecs > PRED_CLOSE_SECS;
   const predSecsLeft = predOpen ? totalSecs - PRED_CLOSE_SECS : 0;
   const predMins = Math.floor(predSecsLeft / 60);
   const predSecs = predSecsLeft % 60;
@@ -640,6 +674,10 @@ function LiveCountView({ market }: { market: Market }) {
     transition: { duration: 0.4, ease: "easeInOut" as const },
     style: { pointerEvents: isTransitioning ? "none" as const : "auto" as const },
   };
+
+  // Formata os labels com o threshold real
+  const upLabel = `Mais de ${threshold}`;
+  const downLabel = `Até ${threshold}`;
 
   return (
     <div className="flex flex-col lg:flex-row gap-4">

@@ -189,3 +189,48 @@ export async function fetchActiveRound(slug: string): Promise<ActiveRound | null
     return null;
   }
 }
+
+/**
+ * Interface para o round ativo da Rodovia.
+ */
+export interface ActiveRodoviaRound {
+  roundId: string;
+  status: string;
+  startsAt: string;
+  betsCloseAt: string;
+  endsAt: string;
+  currentCount: number;
+  threshold: number;
+  predictionsOpen: boolean;
+}
+
+/**
+ * Busca o round ativo da Rodovia.
+ * Retorna null se indisponível — nunca lança exceção.
+ */
+export async function fetchActiveRodoviaRound(): Promise<ActiveRodoviaRound | null> {
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (!apiUrl) return null;
+  try {
+    const res = await fetch(`${apiUrl}/rodovia/rounds/active`, {
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    // Backend returns the round object directly with camelCase fields
+    if (!data?.roundId) return null;
+
+    return {
+      roundId:         data.roundId,
+      status:          data.status,
+      startsAt:        data.startsAt,
+      betsCloseAt:     data.betsCloseAt,
+      endsAt:          data.endsAt,
+      currentCount:    data.currentCount ?? 0,
+      threshold:       data.threshold ?? 145,
+      predictionsOpen: data.predictionsOpen ?? false,
+    };
+  } catch {
+    return null;
+  }
+}
