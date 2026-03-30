@@ -65,20 +65,22 @@ function mapApiMarket(m: ApiMarket): Market {
 
   // Garante 2 seleções mínimas para crypto-live e live-count mesmo com payload parcial da API
   if ((m.display_type === "crypto-live" || m.display_type === "live-count") && mappedSelections.length < 2) {
+    const isLiveCount = m.display_type === "live-count";
+    const fallbackOdd = isLiveCount ? 1.92 : 1.0;
     const yesSel = mappedSelections[0] ?? {
       id: `${m.id}-yes`,
-      label: "Sobe",
-      odd: defaultYesOdd,
+      label: isLiveCount ? "Mais de 145" : "Sobe",
+      odd: isLiveCount ? fallbackOdd : defaultYesOdd,
       percent: 50,
-      code: "UP",
+      code: isLiveCount ? "MAIS" : "UP",
       color: "#02BC17",
     };
     const noSel = mappedSelections[1] ?? {
       id: `${m.id}-no`,
-      label: "Desce",
-      odd: defaultNoOdd,
+      label: isLiveCount ? "Até 145" : "Desce",
+      odd: isLiveCount ? fallbackOdd : defaultNoOdd,
       percent: 50,
-      code: "DOWN",
+      code: isLiveCount ? "ATE" : "DOWN",
       color: "#e23838",
     };
     mappedSelections.splice(0, mappedSelections.length, yesSel, noSel);

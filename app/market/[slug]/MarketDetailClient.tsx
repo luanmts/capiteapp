@@ -947,7 +947,7 @@ function LiveCountView({ market }: { market: Market }) {
       {/* ── RIGHT COLUMN (desktop) ── */}
       <div className="hidden lg:block lg:w-80 xl:w-96 shrink-0">
         <div className="sticky top-20">
-          <TradePanel market={market} predictionsOpen={predOpen} />
+          <TradePanel market={market} resolvedMarketId={rodoviaRound?.roundId} predictionsOpen={predOpen} />
         </div>
       </div>
 
@@ -956,10 +956,11 @@ function LiveCountView({ market }: { market: Market }) {
         upSel={upSel}
         downSel={downSel}
         marketId={market.id}
+        resolvedMarketId={rodoviaRound?.roundId}
         marketTitle={market.title}
         marketIcon={market.icon}
-        upLabel="Mais de 145"
-        downLabel="Até 145"
+        upLabel={`Mais de ${threshold}`}
+        downLabel={`Até ${threshold}`}
         upIcon="▲"
         downIcon="▼"
         predictionsOpen={predOpen}
