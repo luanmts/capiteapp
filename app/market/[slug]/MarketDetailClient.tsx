@@ -683,12 +683,15 @@ function LiveCountView({ market }: { market: Market }) {
   const isTransitioning = phase === "transitioning";
 
   // Calcula o tempo restante para encerrar as previsões.
-  // predictionsOpen (do backend) é a fonte de verdade para travar a UI.
-  // O clamp garante que o countdown nunca exibe valores negativos mesmo
-  // com lag de polling (até 5s) entre o backend fechar e o front receber.
-  const totalSecs = minsLeft * 60 + secsLeft;
-  const PRED_CLOSE_SECS = 150; // 2m30s remaining = predictions close
-  const predSecsLeft = predOpen ? Math.max(0, totalSecs - PRED_CLOSE_SECS) : 0;
+  // Usa betsCloseAt do round ativo (fonte de verdade do backend),
+  // não totalSecs de useLiveMarket que é relativo à janela de 5min do cliente.
+  // predictionsOpen === false trava a UI imediatamente quando o backend confirma.
+  const predSecsLeft = (() => {
+    if (!predOpen) return 0;
+    if (!rodoviaRound?.betsCloseAt) return 0;
+    const msLeft = new Date(rodoviaRound.betsCloseAt).getTime() - Date.now();
+    return Math.max(0, Math.floor(msLeft / 1000));
+  })();
   const predMins = Math.floor(predSecsLeft / 60);
   const predSecs = predSecsLeft % 60;
 
