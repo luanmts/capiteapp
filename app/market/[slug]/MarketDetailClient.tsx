@@ -605,15 +605,9 @@ function LiveCountView({ market }: { market: Market }) {
   const [error, setError] = useState(false);
   const prevRoundKeyRef = useRef(-1);
 
-  // Zera o contador imediatamente quando o relógio do cliente detecta virada de round.
-  // Sem isso, o carCount do round anterior fica visível até o próximo poll (até 5s).
-  useEffect(() => {
-    if (prevRoundKeyRef.current !== -1 && roundKey > prevRoundKeyRef.current) {
-      setCarCount(0);
-      carCountRef.current = 0;
-    }
-    prevRoundKeyRef.current = roundKey;
-  }, [roundKey]);
+  // Ref para chamar fetchRodoviaData de fora do polling effect (evita closure stale).
+  // O polling effect atualiza este ref logo após definir a função.
+  const fetchRodoviaDataRef = useRef<() => void>(() => {});
 
   // Polling para buscar o round ativo da Rodovia
   useEffect(() => {
@@ -624,7 +618,7 @@ function LiveCountView({ market }: { market: Market }) {
       try {
         const data = await fetchActiveRodoviaRound();
         if (!isMounted) return;
-        
+
         if (data) {
           setRodoviaRound(data);
           setCarCount(data.currentCount);
@@ -635,12 +629,15 @@ function LiveCountView({ market }: { market: Market }) {
         } else {
           setError(true);
         }
-      } catch (err) {
+      } catch {
         if (isMounted) setError(true);
       } finally {
         if (isMounted) setIsLoading(false);
       }
     }
+
+    // Expõe fetchRodoviaData para o effect do reset (via ref)
+    fetchRodoviaDataRef.current = fetchRodoviaData;
 
     // Busca inicial
     fetchRodoviaData();
@@ -653,6 +650,18 @@ function LiveCountView({ market }: { market: Market }) {
       clearInterval(intervalId);
     };
   }, []);
+
+  // Zera o contador imediatamente quando o relógio do cliente detecta virada de round
+  // e dispara fetch imediata — sem isso, o polling pode demorar até 5s para refletir
+  // o novo round, e o count do round anterior sobrescreve o zero nesse intervalo.
+  useEffect(() => {
+    if (prevRoundKeyRef.current !== -1 && roundKey > prevRoundKeyRef.current) {
+      setCarCount(0);
+      carCountRef.current = 0;
+      fetchRodoviaDataRef.current();
+    }
+    prevRoundKeyRef.current = roundKey;
+  }, [roundKey]);
 
   // Resolve bets when the round ends — upSel (selections[0]) = "Mais de X"
   useEffect(() => {
