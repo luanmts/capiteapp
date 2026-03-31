@@ -603,6 +603,17 @@ function LiveCountView({ market }: { market: Market }) {
   const [predOpen, setPredOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(false);
+  const prevRoundKeyRef = useRef(-1);
+
+  // Zera o contador imediatamente quando o relógio do cliente detecta virada de round.
+  // Sem isso, o carCount do round anterior fica visível até o próximo poll (até 5s).
+  useEffect(() => {
+    if (prevRoundKeyRef.current !== -1 && roundKey > prevRoundKeyRef.current) {
+      setCarCount(0);
+      carCountRef.current = 0;
+    }
+    prevRoundKeyRef.current = roundKey;
+  }, [roundKey]);
 
   // Polling para buscar o round ativo da Rodovia
   useEffect(() => {
