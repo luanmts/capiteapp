@@ -66,7 +66,7 @@ function mapApiMarket(m: ApiMarket): Market {
   // Garante 2 seleções mínimas para crypto-live e live-count mesmo com payload parcial da API
   if ((m.display_type === "crypto-live" || m.display_type === "live-count") && mappedSelections.length < 2) {
     const isLiveCount = m.display_type === "live-count";
-    const fallbackOdd = isLiveCount ? 1.92 : 1.0;
+    const fallbackOdd = isLiveCount ? 1.76 : 1.0;
     const yesSel = mappedSelections[0] ?? {
       id: `${m.id}-yes`,
       label: isLiveCount ? "Mais de 145" : "Sobe",
