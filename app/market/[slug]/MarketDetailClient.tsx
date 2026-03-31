@@ -682,10 +682,13 @@ function LiveCountView({ market }: { market: Market }) {
   const timerSep = phase === "live" ? "text-red-500/50" : "text-text-tint/30";
   const isTransitioning = phase === "transitioning";
 
-  // Calcula o tempo restante para encerrar as previsões
+  // Calcula o tempo restante para encerrar as previsões.
+  // predictionsOpen (do backend) é a fonte de verdade para travar a UI.
+  // O clamp garante que o countdown nunca exibe valores negativos mesmo
+  // com lag de polling (até 5s) entre o backend fechar e o front receber.
   const totalSecs = minsLeft * 60 + secsLeft;
   const PRED_CLOSE_SECS = 150; // 2m30s remaining = predictions close
-  const predSecsLeft = predOpen ? totalSecs - PRED_CLOSE_SECS : 0;
+  const predSecsLeft = predOpen ? Math.max(0, totalSecs - PRED_CLOSE_SECS) : 0;
   const predMins = Math.floor(predSecsLeft / 60);
   const predSecs = predSecsLeft % 60;
 
