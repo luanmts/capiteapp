@@ -841,6 +841,8 @@ function LiveCountView({ market }: { market: Market }) {
             <HlsPlayer
               src="https://34.104.32.249.nip.io/SP123-KM046/stream.m3u8"
               carCount={carCount}
+              lineStart={[0.0, 0.5]}
+              lineEnd={[1.0, 0.5]}
             />
 
             {/* Time slots */}

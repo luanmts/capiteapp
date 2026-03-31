@@ -6,6 +6,10 @@ interface HlsPlayerProps {
   src: string;
   carCount?: number;
   className?: string;
+  /** Ponto inicial da linha virtual em coordenadas relativas [x, y] (0.0–1.0). Default: [0, 0.5] */
+  lineStart?: [number, number];
+  /** Ponto final da linha virtual em coordenadas relativas [x, y] (0.0–1.0). Default: [1, 0.5] */
+  lineEnd?: [number, number];
 }
 
 // Dynamically loads hls.js from CDN (no npm install needed)
@@ -41,10 +45,117 @@ type HlsConstructor = {
   };
 };
 
-export default function HlsPlayer({ src, carCount, className }: HlsPlayerProps) {
+/** SVG overlay que desenha a linha virtual de contagem sobre o vídeo */
+function CountingLine({
+  lineStart = [0, 0.5],
+  lineEnd   = [1, 0.5],
+  flash,
+}: {
+  lineStart?: [number, number];
+  lineEnd?:   [number, number];
+  flash:      boolean;
+}) {
+  // Converte coordenadas relativas (0–1) para o viewBox 0–100
+  const x1 = lineStart[0] * 100;
+  const y1 = lineStart[1] * 100;
+  const x2 = lineEnd[0]   * 100;
+  const y2 = lineEnd[1]   * 100;
+
+  // Direção para a seta (vetor normalizado)
+  const dx  = x2 - x1;
+  const dy  = y2 - y1;
+  const len = Math.sqrt(dx * dx + dy * dy) || 1;
+  const ux  = dx / len;
+  const uy  = dy / len;
+
+  // Ponta da seta: um triângulo pequeno no ponto médio da linha
+  const mx  = (x1 + x2) / 2;
+  const my  = (y1 + y2) / 2;
+  const aw  = 2.5;  // semi-largura da base
+  const ah  = 4.5;  // altura da seta
+  // perp: vetor perpendicular à linha
+  const px  = -uy;
+  const py  = ux;
+  const tip    = `${mx + ux * ah},${my + uy * ah}`;
+  const base1  = `${mx + px * aw},${my + py * aw}`;
+  const base2  = `${mx - px * aw},${my - py * aw}`;
+
+  const lineColor  = flash ? "#ffffff" : "#facc15";  // amarelo → branco no flash
+  const glowColor  = flash ? "rgba(255,255,255,0.6)" : "rgba(250,204,21,0.35)";
+  const lineOpacity = flash ? 1 : 0.85;
+
+  return (
+    // preserveAspectRatio="none" garante que o SVG cobre exatamente o vídeo
+    <svg
+      className="absolute inset-0 w-full h-full pointer-events-none"
+      viewBox="0 0 100 100"
+      preserveAspectRatio="none"
+      aria-hidden="true"
+    >
+      <defs>
+        <filter id="line-glow">
+          <feGaussianBlur stdDeviation="0.8" result="blur" />
+          <feMerge>
+            <feMergeNode in="blur" />
+            <feMergeNode in="SourceGraphic" />
+          </feMerge>
+        </filter>
+      </defs>
+
+      {/* Glow track — linha mais grossa e semitransparente */}
+      <line
+        x1={x1} y1={y1} x2={x2} y2={y2}
+        stroke={glowColor}
+        strokeWidth="1.8"
+        strokeLinecap="round"
+      />
+
+      {/* Linha principal */}
+      <line
+        x1={x1} y1={y1} x2={x2} y2={y2}
+        stroke={lineColor}
+        strokeWidth="0.7"
+        strokeDasharray="3 2"
+        strokeLinecap="round"
+        opacity={lineOpacity}
+        filter="url(#line-glow)"
+        style={{ transition: "stroke 0.15s ease, opacity 0.15s ease" }}
+      />
+
+      {/* Seta de direção no meio da linha */}
+      <polygon
+        points={`${tip} ${base1} ${base2}`}
+        fill={lineColor}
+        opacity={lineOpacity}
+        style={{ transition: "fill 0.15s ease" }}
+      />
+    </svg>
+  );
+}
+
+export default function HlsPlayer({
+  src,
+  carCount,
+  className,
+  lineStart = [0, 0.5],
+  lineEnd   = [1, 0.5],
+}: HlsPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef   = useRef<ReturnType<HlsConstructor["prototype"]["constructor"]> | null>(null);
   const [status, setStatus] = useState<"loading" | "playing" | "error">("loading");
+  const [flash,  setFlash]  = useState(false);
+  const prevCountRef = useRef<number | undefined>(undefined);
+
+  // Flash breve quando carCount aumenta
+  useEffect(() => {
+    if (carCount === undefined) return;
+    if (prevCountRef.current !== undefined && carCount > prevCountRef.current) {
+      setFlash(true);
+      const t = setTimeout(() => setFlash(false), 500);
+      return () => clearTimeout(t);
+    }
+    prevCountRef.current = carCount;
+  }, [carCount]);
 
   useEffect(() => {
     const video = videoRef.current;
@@ -122,6 +233,11 @@ export default function HlsPlayer({ src, carCount, className }: HlsPlayerProps) 
           <span className="text-2xl">📷</span>
           <p className="text-[11px] text-text-tint/60">Câmera indisponível</p>
         </div>
+      )}
+
+      {/* Linha virtual de contagem — visível quando o vídeo está tocando */}
+      {status === "playing" && (
+        <CountingLine lineStart={lineStart} lineEnd={lineEnd} flash={flash} />
       )}
 
       {/* LIVE badge */}
