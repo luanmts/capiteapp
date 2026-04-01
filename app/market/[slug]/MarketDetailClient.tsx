@@ -866,7 +866,7 @@ function LiveCountView({ market }: { market: Market }) {
 
             {/* Câmera ao vivo — montada uma vez, não desmonta na troca de rodada */}
             <HlsPlayer
-              src="https://34.104.32.249.nip.io/SP123-KM046/stream.m3u8"
+              src="https://34.104.32.249.nip.io/SP008-KM095/stream.m3u8"
               carCount={carCount}
               lineStart={[0.0, 0.5]}
               lineEnd={[1.0, 0.5]}
