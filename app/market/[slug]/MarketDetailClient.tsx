@@ -683,15 +683,16 @@ function LiveCountView({ market }: { market: Market }) {
   const isTransitioning = phase === "transitioning";
 
   // Calcula o tempo restante para encerrar as previsões.
-  // Usa betsCloseAt do round ativo (fonte de verdade do backend),
-  // não totalSecs de useLiveMarket que é relativo à janela de 5min do cliente.
-  // predictionsOpen === false trava a UI imediatamente quando o backend confirma.
+  // Usa betsCloseAt do round ativo como fonte de verdade local —
+  // não depende do lag do polling (até 5s) para fechar a UI.
+  // predictionsOpen é true apenas se: backend confirma E relógio local ainda não passou.
   const predSecsLeft = (() => {
-    if (!predOpen) return 0;
     if (!rodoviaRound?.betsCloseAt) return 0;
     const msLeft = new Date(rodoviaRound.betsCloseAt).getTime() - Date.now();
     return Math.max(0, Math.floor(msLeft / 1000));
   })();
+  const betsOpenLocal = predSecsLeft > 0;
+  const predictionsAllowed = predOpen && betsOpenLocal;
   const predMins = Math.floor(predSecsLeft / 60);
   const predSecs = predSecsLeft % 60;
 
@@ -853,7 +854,7 @@ function LiveCountView({ market }: { market: Market }) {
                 <p className="text-[9px] font-semibold text-text-tint/70 uppercase tracking-wider mb-1">
                   Previsões Encerram Em
                 </p>
-                {predOpen ? (
+                {predictionsAllowed ? (
                   <p suppressHydrationWarning className="text-base font-bold text-amber-400 tabular-nums">
                     {String(predMins).padStart(2, "0")}:{String(predSecs).padStart(2, "0")}
                   </p>
@@ -975,7 +976,7 @@ function LiveCountView({ market }: { market: Market }) {
       {/* ── RIGHT COLUMN (desktop) ── */}
       <div className="hidden lg:block lg:w-80 xl:w-96 shrink-0">
         <div className="sticky top-20">
-          <TradePanel market={market} resolvedMarketId={rodoviaRound?.roundId} predictionsOpen={predOpen} />
+          <TradePanel market={market} resolvedMarketId={rodoviaRound?.roundId} predictionsOpen={predictionsAllowed} />
         </div>
       </div>
 
@@ -991,7 +992,7 @@ function LiveCountView({ market }: { market: Market }) {
         downLabel={`Até ${threshold}`}
         upIcon="▲"
         downIcon="▼"
-        predictionsOpen={predOpen}
+        predictionsOpen={predictionsAllowed}
       />
     </div>
   );
